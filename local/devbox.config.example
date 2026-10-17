@@ -1,0 +1,2 @@
+# Copy to ~/.config/devbox/config (machine-level devbox settings, shell syntax).
+DEVBOX_PROXY=http://<VM_BRIDGE_IP>:8888

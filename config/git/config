@@ -1,0 +1,5 @@
+# Shared git defaults, installed at ~/.config/git/config.
+# Identity and anything tools write (e.g. `gh auth setup-git`) stay in ~/.gitconfig, which git
+# reads after this file and which is not managed. See local/gitconfig.example.
+[init]
+	defaultBranch = main

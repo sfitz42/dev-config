@@ -1,0 +1,3 @@
+# Copy to local/zshrc.local (git-ignored); sourced at the end of .zshrc.
+# Also supported: zshenv.local, zprofile.local, plugins.local.zsh
+export EXAMPLE_ONLY=1

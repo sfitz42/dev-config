@@ -1,0 +1,137 @@
+# packages.yaml: every tool this setup installs, with ordered install sources.
+#
+# Each package has:
+#   check:    how to tell it is already installed (app: path | cmd: name | dir: path | gh_extension: name)
+#   sources:  tried in order; the first usable one wins. Override with `--prefer a,b` or in
+#             local/packages.local.yaml (prefer / exclude / url overrides).
+#   admin:    true if the install needs sudo (the installer asks first)
+#
+# Source types:
+#   brew          formula                       {name}
+#   brew-cask     cask (OFF by default: casks fail on some managed Macs; set brew_casks: true)
+#   dmg           download, verify, copy .app   {url, sha256?, team_id, app}
+#   pkg           download, verify, installer   {url, sha256?, team_id}
+#   script        vendor install script         {url, sha256?}
+#   gh-extension  gh extension install          {repo}
+#   git           clone                         {url, dest, ref?}
+#   web           manual: prints the link
+#
+# Pins: `sha256` is verified before anything is opened. Where a vendor only publishes a moving
+# "latest" URL, sha256 is omitted (`pinned: false`) and `team_id` (the Apple Developer ID team)
+# is checked on the downloaded code instead. Pins were taken on 2026-10-16.
+
+defaults:
+  brew_casks: false
+
+packages:
+  # ---- shell and CLI --------------------------------------------------------
+  gh:
+    check: {cmd: gh}
+    sources: [{type: brew, name: gh}]
+  gh-stack:
+    check: {gh_extension: stack}
+    sources: [{type: gh-extension, repo: github/gh-stack}]   # tested with v0.2.1
+  starship:
+    check: {cmd: starship}
+    sources: [{type: brew, name: starship}]
+  neovim:
+    check: {cmd: nvim}
+    sources: [{type: brew, name: neovim}]
+  ripgrep:
+    check: {cmd: rg}
+    sources: [{type: brew, name: ripgrep}]   # telescope live_grep
+  fd:
+    check: {cmd: fd}
+    sources: [{type: brew, name: fd}]
+  jq:
+    check: {cmd: jq}
+    sources: [{type: brew, name: jq}]        # needed by devbox
+  mise:
+    check: {cmd: mise}
+    sources: [{type: brew, name: mise}]      # Node/Python version manager (replaces nvm)
+  uv:
+    check: {cmd: uv}
+    sources: [{type: brew, name: uv}]
+  tinyproxy:
+    optional: true                           # only for networks that block the container VM
+    check: {cmd: tinyproxy}
+    sources: [{type: brew, name: tinyproxy}]
+  oh-my-zsh:
+    check: {dir: ~/.oh-my-zsh}
+    sources: [{type: git, url: "https://github.com/ohmyzsh/ohmyzsh.git", dest: ~/.oh-my-zsh}]
+  font-meslo-nf:
+    check: {font: "MesloLGS NF"}
+    sources:
+      - {type: brew-cask, name: font-meslo-for-powerlevel10k}
+      - {type: web, url: "https://github.com/romkatv/powerlevel10k-media#fonts"}
+
+  # ---- apps -----------------------------------------------------------------
+  ghostty:
+    check: {app: /Applications/Ghostty.app}
+    sources:
+      - {type: brew-cask, name: ghostty}
+      - type: dmg
+        url: https://release.files.ghostty.org/1.3.1/Ghostty.dmg
+        sha256: 18cff2b0a6cee90eead9c7d3064e808a252a40baf214aa752c1ecb793b8f5f69
+        team_id: 24VZTF6M5V
+        app: Ghostty.app
+      - {type: web, url: "https://ghostty.org/download"}
+  zed:
+    check: {app: /Applications/Zed.app}
+    sources:
+      - {type: brew-cask, name: zed}
+      - type: dmg
+        url: https://zed.dev/api/releases/stable/1.24.2/Zed-aarch64.dmg
+        sha256: 5d1207f7ba676963f8bba37da002997d884cdbec8c5c47702210fa5110111b19
+        team_id: MQ55VZLNZQ
+        app: Zed.app
+      - {type: web, url: "https://zed.dev/download"}
+  docker-desktop:
+    check: {app: /Applications/Docker.app}
+    sources:
+      - {type: brew-cask, name: docker-desktop}
+      - type: dmg                              # moving "latest" URL, so unpinned; team_id checked
+        url: https://desktop.docker.com/mac/main/arm64/Docker.dmg
+        pinned: false
+        team_id: 9BNSXJN65R
+        app: Docker.app
+      - {type: web, url: "https://www.docker.com/products/docker-desktop/"}
+  omlx:
+    check: {app: /Applications/oMLX.app}
+    sources:
+      - type: dmg                              # macOS 26 build; use the -macos15-sequoia asset on 15
+        url: https://github.com/jundot/omlx/releases/download/v0.7.0/oMLX-0.7.0-macos26-27.dmg
+        sha256: 2e3bb06ac6ee7f50986ba1417e909d432ccd2be471db752a4a2d3b5651e3bce0   # GitHub release digest
+        team_id: PSK5Q5T46L
+        app: oMLX.app
+      - {type: web, url: "https://github.com/jundot/omlx/releases"}
+  apple-container:
+    admin: true
+    check: {cmd: container}
+    sources:
+      - type: pkg
+        url: https://github.com/apple/container/releases/download/1.5.0/container-1.5.0-installer-signed.pkg
+        sha256: a24808cb202318fa1c3bbee0c6c6887fe1225fe899d7b687a0ddd939bd6573f8   # GitHub release digest
+      - {type: web, url: "https://github.com/apple/container/releases"}
+
+  # ---- coding agents (extensions and plugins live in agents/) ----------------
+  claude:
+    check: {cmd: claude}
+    sources:
+      - type: script                           # vendor installer, moving target, so unpinned
+        url: https://claude.ai/install.sh
+        pinned: false
+      - {type: web, url: "https://claude.ai/download"}
+  pi:
+    check: {cmd: pi}
+    sources:
+      - type: script
+        url: https://pi.dev/install.sh
+        pinned: false
+      - {type: web, url: "https://pi.dev"}
+
+# Config repos cloned alongside the dotfiles
+external_repos:
+  nvim-config:
+    url: https://github.com/sfitz42/nvim-config.git
+    dest: ~/.config/nvim

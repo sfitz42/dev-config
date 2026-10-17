@@ -1,0 +1,13 @@
+# Generic SSH client config. Host entries (names, addresses, users, key files) are private and
+# belong in ~/.ssh/config.d/ (linked from local/ssh.d/ by the installer), not here.
+#
+# Include must come first: ssh uses the first value it finds for each option.
+Include ~/.ssh/config.d/*
+
+Host *
+  # macOS: remember key passphrases in the keychain; other ssh builds ignore the unknown option
+  IgnoreUnknown UseKeychain
+  UseKeychain yes
+  AddKeysToAgent yes
+  ServerAliveInterval 60
+  ServerAliveCountMax 3

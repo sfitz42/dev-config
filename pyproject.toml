@@ -1,0 +1,16 @@
+[project]
+name = "dotfiles"
+version = "0.1.0"
+description = "Installer for dev-config: links, packages, agents"
+requires-python = ">=3.11"
+dependencies = ["pyyaml==6.*"]
+
+[dependency-groups]
+dev = ["pytest==8.*"]
+
+[tool.uv]
+package = false   # run from source: scripts/dotfiles sets PYTHONPATH=src
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

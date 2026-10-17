@@ -1,0 +1,33 @@
+# links.yaml: which repo files go where. One module per app, so you can install only some:
+#   scripts/dotfiles link --only zsh,starship
+#
+# Entry kinds:
+#   {src, dst}                  symlink dst -> src (an existing file is backed up first)
+#   {src, dst, copy: if-missing} copy once, never overwrite (for files the app rewrites itself)
+#   {glob, dst_dir, exclude}    link every match into a directory (e.g. private host entries)
+#   {mkdir, mode}               create a directory with a mode
+# `src` and `glob` are relative to the repo root; `dst` may start with ~.
+
+modules:
+  zsh:
+    - {src: config/zsh/.zshenv,   dst: ~/.zshenv}
+    - {src: config/zsh/.zprofile, dst: ~/.zprofile}
+    - {src: config/zsh/.zshrc,    dst: ~/.zshrc}
+  starship:
+    - {src: config/starship/starship.toml, dst: ~/.config/starship.toml}
+  ssh:
+    - {mkdir: ~/.ssh, mode: "700"}
+    - {mkdir: ~/.ssh/config.d, mode: "700"}
+    - {src: config/ssh/config, dst: ~/.ssh/config}
+    - {glob: "local/ssh.d/*", dst_dir: ~/.ssh/config.d, exclude: "*.example"}
+  git:
+    - {src: config/git/config, dst: ~/.config/git/config}
+  ghostty:
+    - {src: config/ghostty/config, dst: ~/.config/ghostty/config}
+  mise:
+    - {src: config/mise/config.toml, dst: ~/.config/mise/config.toml}
+  gh:
+    - {src: config/gh/config.yml, dst: ~/.config/gh/config.yml}
+  zed:
+    # Zed rewrites settings.json (including private ssh_connections), so copy once instead of linking
+    - {src: config/zed/settings.json, dst: ~/.config/zed/settings.json, copy: if-missing}

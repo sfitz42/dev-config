@@ -1,0 +1,7 @@
+# Copy to local/ssh.d/<name> (git-ignored); the installer links each file into ~/.ssh/config.d/.
+Host <HOST_A>
+  HostName <HOSTNAME_OR_IP>
+  Port <PORT>
+  User <USER>
+  IdentityFile ~/.ssh/<KEY_FILE>
+  IdentitiesOnly yes

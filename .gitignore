@@ -1,0 +1,26 @@
+# Per-machine and private material: only the README and *.example templates are tracked
+/local/**
+!/local/**/
+!/local/README.md
+!/local/**/*.example
+# Certificates are synced into the build context from local/ and never committed
+/devcontainers/certificates/*
+!/devcontainers/certificates/.gitkeep
+# Shared config staged into the build context by build.sh
+/devcontainers/config/
+
+# Scratch, backups, secrets
+*.bak
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+
+# zsh completion caches (machine-specific; contain host and user paths)
+.zcompdump*
+zcompdump*

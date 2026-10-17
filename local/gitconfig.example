@@ -1,0 +1,4 @@
+# Copy the [user] block into ~/.gitconfig (not managed by this repo).
+[user]
+	name = <YOUR_NAME>
+	email = <ID+USERNAME@users.noreply.github.com>

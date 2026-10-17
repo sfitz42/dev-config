@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+# devbox: manage one persistent dev container per project (Apple `container`).
+#
+#   devbox [-C project-dir] <command>
+#
+# Commands:
+#   up                create (if needed) and start the project container
+#   shell             open zsh in the workspace (starts the container if stopped)
+#   exec <cmd...>     run a command in the container
+#   stop              stop it (state is kept; `devbox up` starts it again)
+#   down              stop and delete the container (volumes are kept)
+#   recreate          down + up: apply changed config or a rebuilt image
+#   status            show state, address, ports and volumes
+#   logs              show container logs
+#   ssh-config        print the ssh host entry for editors (--install writes ~/.ssh/config.d/devbox-<name>)
+#   purge             down + delete this project's volumes (asks first)
+#
+# Machine-level settings (e.g. DEVBOX_PROXY=http://192.168.64.1:8888) go in
+# ~/.config/devbox/config. Per-project settings go in <project-dir>/.devbox.env
+# (both shell syntax), e.g.
+#   DEVBOX_PORTS="3000 8085"          # host:container or just a port; bound to 127.0.0.1
+#   DEVBOX_MEMORY=8G
+#   DEVBOX_NO_PROXY=floci,backend     # extra hosts to exempt from the proxy
+# See the defaults below for everything that can be set. Changing create-time
+# settings (ports, memory, image, ...) needs `devbox recreate`.
+set -euo pipefail
+
+# ---- defaults ---------------------------------------------------------------
+DEVBOX_IMAGE="dev-fullstack:0.1.0"
+DEVBOX_NAME=""                              # default: devbox-<project dir name>
+DEVBOX_WORKSPACE="/home/dev/workspace"      # where the project dir is mounted (matches core WORKDIR)
+DEVBOX_MEMORY="6G"
+DEVBOX_CPUS="4"
+DEVBOX_PORTS=""                             # space-separated
+DEVBOX_DOCKER=1                             # run dockerd inside
+DEVBOX_SSHD=1                               # run sshd inside (Zed, ssh)
+DEVBOX_SSH_PORT=""                          # default: derived from the name (2200-2999)
+DEVBOX_SSH_KEY="$HOME/.ssh/devbox"        # created if missing
+DEVBOX_FORWARD_AGENT=1                      # forward the Mac's ssh-agent (git over ssh)
+DEVBOX_PROXY=""                             # e.g. http://192.168.64.1:8888; empty = no proxy
+DEVBOX_NO_PROXY=""                          # extra, added to the built-in exemptions
+DEVBOX_PROXY_INJECT="off"                   # off|all: docker CLI proxy injection (see entrypoint)
+DEVBOX_DOCKER_VOLUME_SIZE="40G"
+
+die() { echo "devbox: $*" >&2; exit 1; }
+
+PROJECT_DIR="$PWD"
+if [ "${1:-}" = "-C" ]; then
+  [ -n "${2:-}" ] || die "-C needs a directory"
+  PROJECT_DIR="$(cd "$2" && pwd)"; shift 2
+fi
+CMD="${1:-help}"; [ $# -gt 0 ] && shift
+
+# Settings layer: defaults above < machine-level config (proxy etc.) < project .devbox.env
+[ -f "${DEVBOX_CONFIG:-$HOME/.config/devbox/config}" ] && . "${DEVBOX_CONFIG:-$HOME/.config/devbox/config}"
+[ -f "$PROJECT_DIR/.devbox.env" ] && . "$PROJECT_DIR/.devbox.env"
+
+if [ -z "$DEVBOX_NAME" ]; then
+  slug="$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_.-]/-/g')"
+  DEVBOX_NAME="devbox-$slug"
+fi
+NAME="$DEVBOX_NAME"
+if [ -z "$DEVBOX_SSH_PORT" ]; then
+  DEVBOX_SSH_PORT=$(( 2200 + $(printf %s "$NAME" | cksum | cut -d' ' -f1) % 800 ))
+fi
+VOLUMES=("$NAME-docker:/var/lib/docker" "$NAME-zed:/home/dev/.zed_server"
+         "$NAME-uv:/home/dev/.cache/uv" "$NAME-npm:/home/dev/.npm")
+
+# ---- helpers ----------------------------------------------------------------
+command -v container >/dev/null || die "Apple 'container' CLI not found"
+command -v jq >/dev/null || die "jq not found (brew install jq)"
+
+state() {   # running | stopped | "" (missing)
+  container list --all --format json \
+    | jq -r --arg n "$NAME" '.[] | select(.configuration.id == $n) | .status.state' | head -n1
+}
+
+ensure_key() {
+  [ "$DEVBOX_SSHD" = 1 ] || return 0
+  if [ ! -f "$DEVBOX_SSH_KEY" ]; then
+    echo "creating SSH key $DEVBOX_SSH_KEY (no passphrase)"
+    mkdir -p -m 700 "$(dirname "$DEVBOX_SSH_KEY")"
+    ssh-keygen -q -t ed25519 -N '' -C "devbox dev container" -f "$DEVBOX_SSH_KEY"
+  fi
+}
+
+ensure_volumes() {
+  local v vol
+  for v in "${VOLUMES[@]}"; do
+    vol="${v%%:*}"
+    container volume inspect "$vol" >/dev/null 2>&1 && continue
+    if [ "$vol" = "$NAME-docker" ]; then
+      container volume create -s "$DEVBOX_DOCKER_VOLUME_SIZE" "$vol" >/dev/null
+    else
+      container volume create "$vol" >/dev/null
+    fi
+  done
+}
+
+create_container() {
+  local args=(run -d --name "$NAME" -m "$DEVBOX_MEMORY" -c "$DEVBOX_CPUS")
+  local p v no
+
+  [ "$DEVBOX_DOCKER" = 1 ] && args+=(--cap-add CAP_NET_ADMIN --cap-add CAP_SYS_ADMIN)
+  [ "$DEVBOX_FORWARD_AGENT" = 1 ] && [ -n "${SSH_AUTH_SOCK:-}" ] && args+=(--ssh)
+
+  for p in $DEVBOX_PORTS; do
+    case "$p" in *:*) args+=(-p "127.0.0.1:$p") ;; *) args+=(-p "127.0.0.1:$p:$p") ;; esac
+  done
+  [ "$DEVBOX_SSHD" = 1 ] && args+=(-p "127.0.0.1:$DEVBOX_SSH_PORT:$DEVBOX_SSH_PORT")
+
+  args+=(-e "DEVBOX_DOCKER=$DEVBOX_DOCKER" -e "DEVBOX_SSHD=$DEVBOX_SSHD"
+         -e "DEVBOX_SSHD_PORT=$DEVBOX_SSH_PORT" -e "DEVBOX_PROXY_INJECT=$DEVBOX_PROXY_INJECT"
+         -e TERM=xterm-256color)
+  [ "$DEVBOX_SSHD" = 1 ] && args+=(-e "DEVBOX_SSH_PUBKEY=$(cat "$DEVBOX_SSH_KEY.pub")")
+
+  if [ -n "$DEVBOX_PROXY" ]; then
+    no="localhost,127.0.0.1,::1,172.16.0.0/12${DEVBOX_NO_PROXY:+,$DEVBOX_NO_PROXY}"
+    args+=(-e "HTTP_PROXY=$DEVBOX_PROXY" -e "HTTPS_PROXY=$DEVBOX_PROXY"
+           -e "http_proxy=$DEVBOX_PROXY" -e "https_proxy=$DEVBOX_PROXY"
+           -e "NO_PROXY=$no" -e "no_proxy=$no")
+  fi
+
+  args+=(-v "$PROJECT_DIR:$DEVBOX_WORKSPACE")
+  for v in "${VOLUMES[@]}"; do args+=(-v "$v"); done
+  args+=("$DEVBOX_IMAGE" sleep infinity)
+
+  container "${args[@]}" >/dev/null
+}
+
+wait_ready() {
+  local i
+  printf 'waiting for %s' "$NAME"
+  for i in $(seq 1 120); do
+    if container exec "$NAME" test -f /tmp/devbox-ready >/dev/null 2>&1; then echo " ready"; return 0; fi
+    printf '.'; sleep 1
+  done
+  echo; die "container did not become ready; try: devbox logs"
+}
+
+cmd_up() {
+  case "$(state)" in
+    running) ;;
+    stopped) container start "$NAME" >/dev/null; wait_ready ;;
+    *)       ensure_key; ensure_volumes; create_container; wait_ready ;;
+  esac
+}
+
+cmd_stop() {
+  [ "$(state)" = running ] && container stop -t 40 "$NAME" >/dev/null
+  return 0
+}
+
+cmd_down() {
+  cmd_stop
+  [ -n "$(state)" ] && container delete "$NAME" >/dev/null
+  if [ "$DEVBOX_SSHD" = 1 ] && [ -f "$HOME/.ssh/known_hosts_devbox" ]; then
+    ssh-keygen -q -R "[localhost]:$DEVBOX_SSH_PORT" -f "$HOME/.ssh/known_hosts_devbox" >/dev/null 2>&1 || true
+  fi
+  return 0
+}
+
+ssh_block() {
+  cat <<EOF
+Host $NAME
+  HostName localhost
+  Port $DEVBOX_SSH_PORT
+  User dev
+  IdentityFile $DEVBOX_SSH_KEY
+  IdentitiesOnly yes
+  UserKnownHostsFile ~/.ssh/known_hosts_devbox
+  StrictHostKeyChecking accept-new
+EOF
+}
+
+# ---- commands ---------------------------------------------------------------
+case "$CMD" in
+  up)
+    cmd_up
+    echo "$NAME is running (project: $PROJECT_DIR -> $DEVBOX_WORKSPACE)"
+    if [ "$DEVBOX_SSHD" = 1 ]; then echo "ssh: ssh $NAME   (run 'devbox ssh-config --install' once)"; fi
+    ;;
+  shell)
+    cmd_up
+    exec container exec -it -w "$DEVBOX_WORKSPACE" "$NAME" zsh
+    ;;
+  exec)
+    cmd_up
+    if [ -t 0 ] && [ -t 1 ]; then tty=(-it); else tty=(-i); fi
+    exec container exec "${tty[@]}" -w "$DEVBOX_WORKSPACE" "$NAME" "$@"
+    ;;
+  stop) cmd_stop ;;
+  down) cmd_down ;;
+  recreate) cmd_down; cmd_up ;;
+  status)
+    s="$(state)"; echo "name:    $NAME"; echo "state:   ${s:-not created}"
+    echo "project: $PROJECT_DIR"
+    if [ -n "$s" ]; then
+      container list --all --format json | jq -r --arg n "$NAME" \
+        '.[] | select(.configuration.id == $n) | "address: " + (.status.networks[0].ipv4Address // "-")'
+    fi
+    echo "ports:   ${DEVBOX_PORTS:-none}$([ "$DEVBOX_SSHD" = 1 ] && echo " ssh=$DEVBOX_SSH_PORT")"
+    echo "volumes:"; for v in "${VOLUMES[@]}"; do echo "  ${v%%:*}"; done
+    ;;
+  logs) exec container logs "$NAME" ;;
+  ssh-config)
+    if [ "${1:-}" = "--install" ]; then
+      # One file per project in ~/.ssh/config.d/ so ~/.ssh/config can be a managed (symlinked) file
+      conf_d="$HOME/.ssh/config.d"; entry="$conf_d/devbox-$NAME"
+      mkdir -p -m 700 "$HOME/.ssh" "$conf_d"
+      ssh_block > "$entry"; chmod 600 "$entry"
+      echo "wrote $entry"
+      grep -qE '^[[:space:]]*Include[[:space:]].*config\.d' "$HOME/.ssh/config" 2>/dev/null \
+        || echo "note: add 'Include ~/.ssh/config.d/*' to the top of ~/.ssh/config so ssh reads it" >&2
+    else
+      ssh_block
+    fi
+    ;;
+  purge)
+    read -r -p "Delete container $NAME and ALL its volumes (Docker images, caches)? [y/N] " ans
+    [ "$ans" = y ] || [ "$ans" = Y ] || die "aborted"
+    cmd_down
+    for v in "${VOLUMES[@]}"; do container volume delete "${v%%:*}" >/dev/null 2>&1 || true; done
+    ;;
+  help|-h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown command '$CMD' (try: devbox help)" ;;
+esac

@@ -1,0 +1,12 @@
+# Forward proxy for `container build` behind Zscaler. Listens only on the
+# Apple container bridge so nothing else on the network can use it.
+Port 8888
+Listen 192.168.64.1
+Allow 192.168.64.0/24
+ConnectPort 443
+ConnectPort 80
+LogLevel Info
+Syslog Off
+LogFile "/tmp/tinyproxy.log"
+PidFile "/tmp/tinyproxy.pid"
+Timeout 600

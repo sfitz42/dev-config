@@ -1,0 +1,11 @@
+agent: pi
+install: {package: pi}
+settings:
+  file: agents/pi/settings.json
+  target: ~/.pi/agent/settings.json
+models:
+  template: agents/pi/models.json.tmpl
+  target: ~/.pi/agent/models.json
+  env: [OMLX_API_KEY]
+extensions:           # sources as `pi install` takes them; pin with @version (npm) or @tag/@commit (git)
+  - npm:pi-claude-marketplace@0.20.1   # use Claude plugin marketplaces (e.g. defra-aice) from Pi

@@ -1,0 +1,18 @@
+agent: claude
+install: {package: claude}
+settings:
+  file: agents/claude/settings.json
+  target: ~/.claude/settings.json
+
+# Adding a marketplace never installs its plugins: plugins are opt-in, listed under `plugins`.
+# The one exception is a marketplace flagged `install_all: true`, which installs everything it
+# publishes (including plugins added to it later).
+marketplaces:
+  - {name: claude-plugins-official, source: anthropics/claude-plugins-official}
+  - {name: defra-aice, source: DEFRA/aice-team, install_all: true}   # aice-python, aice-javascript, aice-github-actions
+
+plugins: []           # explicit opt-ins, as plugin@marketplace, e.g. code-review@claude-plugins-official
+
+# links:              # add skills/commands/instructions when you have some, e.g.
+#   - {src: agents/claude/CLAUDE.md, dst: ~/.claude/CLAUDE.md}
+#   - {glob: "agents/claude/skills/*", dst_dir: ~/.claude/skills}
