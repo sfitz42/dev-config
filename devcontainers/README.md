@@ -1,7 +1,15 @@
 # devcontainers
 
-Project-blind dev images for [Apple `container`](https://github.com/apple/container),
-plus a launcher (`devbox`) that runs one **persistent container per project**.
+Project-blind dev images for [Apple `container`](https://github.com/apple/container) on macOS and
+[WSL containers (`wslc`)](../docs/tools/wslc.md) on Windows, plus a launcher (`devbox`) that runs one
+**persistent container per project**.
+
+| | Apple `container` | `wslc` |
+|---|---|---|
+| Build images, persistent container, volumes, sshd/Zed, ports | ✅ | ✅ |
+| Docker inside the container (`DEVBOX_DOCKER`) | ✅ | ❌ no capability flags; turned off |
+| ssh-agent forwarding into the container | ✅ `--ssh` | ❌ only over SSH sessions (`ForwardAgent yes`) |
+| Proxy host for builds/containers | `192.168.64.1` (tinyproxy) | `host.wslc.internal` |
 
 - **Images know nothing about projects.** No proxy settings, ports or project paths are baked
   in. Those are applied when the container is created (by `devbox`, or by your own `container run`).
@@ -15,24 +23,27 @@ plus a launcher (`devbox`) that runs one **persistent container per project**.
 | `images/core.Dockerfile` | `dev-core`: Fedora, non-root `dev` user (passwordless sudo), build tools, git/ssh, Docker CLI, zsh (Oh My Zsh + Starship). No language runtimes. |
 | `images/dev-fullstack.Dockerfile` | `dev-fullstack`: `dev-core` + Node (nvm), Python (uv via pipx), Docker daemon, sshd. |
 | `images/entrypoint.sh` | Image entrypoint: starts dockerd / sshd on request, shuts them down cleanly on stop. |
-| `config/` | Git-ignored staging dir. `build.sh` copies the shared `../config/zsh/` and `../config/starship/starship.toml` here, so the images use the same shell config as the Mac. |
-| `certificates/` | Empty in git. `build.sh` copies `local/certificates/*.crt` here and the image trusts them (optional; for TLS-inspecting corporate proxies). |
+| `config/` | Git-ignored staging dir. `devbox build` copies the shared `../config/zsh/` and `../config/starship/starship.toml` here, so the images use the same shell config as the host. |
+| `certificates/` | Empty in git. `devbox build` copies `local/certificates/*.crt` here and the image trusts them (optional; for TLS-inspecting corporate proxies). |
 | `proxy/tinyproxy.conf.example` | Host-side proxy for networks that block the container VM, e.g. Zscaler (see [Proxy](#proxy)). Copy to `local/proxy/tinyproxy.conf` to enable. |
-| `build.sh` | Builds the images, starting tinyproxy and routing downloads through it. |
-| `devbox/devbox` | Launcher for per-project persistent containers. |
+| `build.sh`, `build.ps1` | Shims for `devbox build`: build the images (with tinyproxy on Apple `container` when configured). |
+| `devbox/devbox`, `devbox/devbox.ps1` | Shims that run the launcher (`src/dotfiles/devbox/`, Python via uv). |
 
 ## Prerequisites
 
-- macOS with Apple's `container` CLI (`container system start`)
-- `jq` (`brew install jq`) for `devbox`
-- `tinyproxy` (`brew install tinyproxy`) for `build.sh` only if you use the proxy (see [Proxy](#proxy))
+- `uv` (installed by `scripts/bootstrap.sh` / `bootstrap.ps1`); it runs the Python launcher
+- macOS: Apple's `container` CLI (`container system start`); `tinyproxy` (`brew install tinyproxy`)
+  only if you use the proxy (see [Proxy](#proxy))
+- Windows: WSL 2.9.3+ (`wsl --update`; check with `wslc version`). Run devbox from PowerShell
+  (`devbox.ps1`), or from inside a distro (`devbox` calls `wslc.exe` through interop and converts
+  paths with `wslpath`)
 
 ## Build the images
 
 ```sh
-./build.sh                 # dev-core, then dev-fullstack
+./build.sh                 # dev-core, then dev-fullstack      (Windows: .\build.ps1)
 ./build.sh fullstack       # just dev-fullstack (core must already exist)
-./build.sh core --no-cache # extra args are passed to `container build`
+./build.sh core --no-cache # extra args are passed to `container build` / `wslc build`
 ```
 
 Tags default to `dev-core:0.1.0` and `dev-fullstack:0.1.0` (override with `CORE_TAG`,
@@ -47,9 +58,11 @@ Tags default to `dev-core:0.1.0` and `dev-fullstack:0.1.0` (override with `CORE_
 
 e.g. `./build.sh fullstack --build-arg NODE_VERSION=22`.
 
-`build.sh` starts the container system and builder and, if `local/proxy/tinyproxy.conf` exists (or `USE_PROXY=1`), starts tinyproxy on the VM bridge address
-(`192.168.64.1:8888`) and passes it to the build as proxy build args. Those args are only used
-while building; they are not stored in the image.
+With Apple `container`, the build starts the container system and builder. If
+`local/proxy/tinyproxy.conf` exists (or `USE_PROXY=1`), it also starts tinyproxy on the VM bridge
+address (`192.168.64.1:8888`) and passes it to the build as proxy build args. On either runtime,
+`BUILD_PROXY=http://host:port` uses a proxy you run yourself (with wslc the Windows host is
+`host.wslc.internal`). Proxy args are only used while building; they are not stored in the image.
 
 ## Quick start
 
@@ -60,6 +73,11 @@ devbox shell                     # zsh in the project (mounted at ~/workspace)
 devbox ssh-config --install      # once: writes ~/.ssh/config.d/devbox-my-app (needs `Include ~/.ssh/config.d/*` in ~/.ssh/config)
 devbox stop                      # stop it; `devbox up` starts it again with its state intact
 ```
+
+On Windows, the same commands are `...\devcontainers\devbox\devbox.ps1 up` and so on. Add a
+profile function such as `function devbox { & "<repo>\devcontainers\devbox\devbox.ps1" @args }`.
+Keep projects on the Windows drive: with wslc it is about 5× faster than a `\\wsl.localhost` path
+(see [wslc](../docs/tools/wslc.md)).
 
 Run `devbox help` for the command list.
 
@@ -82,11 +100,12 @@ Run `devbox help` for the command list.
 
 Settings are layered, later overriding earlier:
 
-1. Built-in defaults in `devbox`
-2. **Machine-level** `~/.config/devbox/config` (or `$DEVBOX_CONFIG`): things specific to this Mac, such as the proxy
+1. Built-in defaults (`src/dotfiles/devbox/config.py`)
+2. **Machine-level** `~/.config/devbox/config` (or `$DEVBOX_CONFIG`): things specific to this machine, such as the proxy
 3. **Project-level** `<project>/.devbox.env`: ports, memory, extra `NO_PROXY` hosts
 
-Both files are shell syntax. Example:
+Both files are `KEY=value` lines with shell quoting and `#` comments. They are parsed, not sourced,
+so `$VAR` and `$(...)` are not expanded. On Windows, backslashes are kept (for paths). Example:
 
 ```sh
 # ~/.config/devbox/config
@@ -105,15 +124,16 @@ DEVBOX_NO_PROXY=floci,backend
 | `DEVBOX_WORKSPACE` | `/home/dev/workspace` | Where the project directory is mounted (matches `dev-core`'s `WORKDIR`) |
 | `DEVBOX_MEMORY` / `DEVBOX_CPUS` | `6G` / `4` | VM resources. Apple `container` defaults to 1 GB, which is too little for Docker + a compose stack |
 | `DEVBOX_PORTS` | none | Space-separated ports to publish, bound to `127.0.0.1`. `3000` = `3000:3000`; `8080:3000` = host 8080 to container 3000 |
-| `DEVBOX_DOCKER` | `1` | Run dockerd inside the container |
+| `DEVBOX_RUNTIME` | by platform | `container` (Apple) or `wslc`; also read from the environment |
+| `DEVBOX_DOCKER` | `1` | Run dockerd inside the container (Apple `container` only; off under wslc, which also skips the `-docker` volume) |
 | `DEVBOX_SSHD` | `1` | Run sshd inside the container |
 | `DEVBOX_SSH_PORT` | derived from the name (2200-2999) | Host and container port for SSH; unique per project |
 | `DEVBOX_SSH_KEY` | `~/.ssh/devbox` | Key pair used to log in; created (no passphrase) if missing |
-| `DEVBOX_FORWARD_AGENT` | `1` | Forward the Mac's ssh-agent into the container (`--ssh`) |
+| `DEVBOX_FORWARD_AGENT` | `1` | Forward the Mac's ssh-agent into the container (`--ssh`); under wslc, adds `ForwardAgent yes` to the ssh entry instead |
 | `DEVBOX_PROXY` | empty | Proxy URL; empty means no proxy |
 | `DEVBOX_NO_PROXY` | empty | Extra hosts exempt from the proxy, added to `localhost,127.0.0.1,::1,172.16.0.0/12` |
 | `DEVBOX_PROXY_INJECT` | `off` | `off`/`all`: whether the Docker CLI injects the proxy into builds and containers (see [Proxy](#proxy)) |
-| `DEVBOX_DOCKER_VOLUME_SIZE` | `40G` | Size of the Docker store volume |
+| `DEVBOX_DOCKER_VOLUME_SIZE` | `40G` | Size of the Docker store volume (Apple `container`) |
 
 Create-time settings (ports, memory, CPUs, image, proxy, key) only apply when the container is
 created. After changing them, run `devbox recreate`.
@@ -180,6 +200,10 @@ container is created, so after a Mac restart or logout run `devbox recreate`.
 
 ## Docker inside the container
 
+Apple `container` only. wslc gives containers Docker's default capabilities with no way to add
+more, so dockerd fails there (iptables and the `/proc/sys` remount are denied) and devbox turns it
+off.
+
 `DEVBOX_DOCKER=1` runs a real dockerd inside the container's VM, which isolates it from the Mac's
 other Docker state and avoids exposing a host daemon. The entrypoint:
 
@@ -196,7 +220,7 @@ projects that need Docker. Ports of compose services must be published to the co
 The container VM cannot reach the internet directly through Zscaler, but the Mac can, so a
 tinyproxy on the Mac (`proxy/tinyproxy.conf.example`, copied to `local/proxy/tinyproxy.conf`; `192.168.64.1:8888`) makes the connections.
 
-- **Image builds:** `build.sh` starts tinyproxy and passes it as build args (not stored in the image).
+- **Image builds:** `devbox build` starts tinyproxy and passes it as build args (not stored in the image).
 - **Running containers:** `DEVBOX_PROXY` sets `HTTP_PROXY`/`HTTPS_PROXY` (both cases) and `NO_PROXY`.
   Localhost, `127.0.0.1`, `::1` and `172.16.0.0/12` are always exempt.
 - **dockerd** pulls images through the proxy.
@@ -248,3 +272,11 @@ tooling (`node`, `uv`) on `PATH` over SSH.
 
 Not verified: interactive `devbox shell` in a terminal, ssh-agent forwarding, Zed against the new
 setup, `DEVBOX_PROXY_INJECT=all`, and a real compose project (including the Floci emulator).
+
+**wslc (2026-10-17, wslc 3.0.3, Python devbox):**
+- Verified from PowerShell: image builds; `up`, `status`, `exec` (exit codes, piped stdin),
+  `stop`/`up` keeping state, `recreate`, `down` keeping volumes, `purge`; SSH key login through the
+  generated entry with node/uv on PATH; a published port reachable on `127.0.0.1`.
+- Verified from inside a WSL distro: `up`/`exec`/`purge` with a distro project path.
+- Not verified: interactive `devbox shell`, Zed, the Apple `container` path of the Python rewrite
+  (covered by tests that check its `container run` args match the bash version).

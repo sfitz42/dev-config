@@ -10,6 +10,10 @@ git clone <this repo> ~/.dev-config && cd ~/.dev-config
 ./scripts/bootstrap.sh                # Command Line Tools -> Homebrew -> uv -> everything
 ```
 
+Linux and WSL use the same two commands (dnf/apt instead of Homebrew; clone inside the distro). On
+Windows, `scripts\bootstrap.ps1` checks WSL and installs uv, and `devbox` runs on
+[WSL containers](docs/tools/wslc.md). See [getting started](docs/getting-started.md#windows-with-wsl).
+
 Existing files are backed up to `~/.config-backups/` before anything is replaced;
 `scripts/dotfiles uninstall` puts them back.
 
@@ -17,8 +21,8 @@ Existing files are backed up to `~/.config-backups/` before anything is replaced
 |---|---|
 | `config/` | zsh (split into modules), Starship, ssh, git, Ghostty, Zed, gh, mise |
 | `agents/` | per-assistant manifests: settings, marketplaces, plugins, extensions |
-| `devcontainers/` | Apple `container` images and the `devbox` launcher |
-| `packages.yaml` | every tool, with ordered install sources (brew, DMG, pkg, script) |
+| `devcontainers/` | dev container images and the `devbox` launcher (Apple `container` or WSL `wslc`) |
+| `packages.yaml` | every tool, with ordered install sources (brew, DMG, pkg, dnf/apt, script) |
 | `local/` | git-ignored overrides for hosts, keys, proxies and certificates |
 | `docs/` | how I use it all, including [local models](docs/local-models/apple-silicon-basics.md) and my dated [model assessments](docs/local-models/models.md) |
 
@@ -34,13 +38,14 @@ link to the page that covers them.
 | | Ghostty (terminal) | [Ghostty](docs/tools/ghostty.md) |
 | | MesloLGS NF (Nerd Font) | [Starship](docs/tools/starship.md), [Ghostty](docs/tools/ghostty.md) |
 | | ripgrep, fd | [Neovim](docs/tools/neovim.md#prerequisites-on-a-fresh-mac) |
-| | jq | [devbox](docs/tools/devbox.md) |
+| | jq | [devbox](docs/tools/devbox.md) (used inside the images) |
 | Editors | Neovim | [Neovim](docs/tools/neovim.md) |
 | | Zed | [Zed](docs/tools/zed.md) |
 | Git and GitHub | gh, gh-stack | [gh and gh-stack](docs/tools/gh-stack.md) |
 | Runtimes | mise (Node, Python) | [zsh: runtimes](docs/tools/zsh.md#node-and-python-runtimes) |
 | | uv (runs the installer) | [Getting started](docs/getting-started.md) |
 | Containers | Apple `container` | [Apple container](docs/tools/apple-container.md) |
+| | WSL containers (`wslc`, Windows) | [wslc](docs/tools/wslc.md) |
 | | devbox, tinyproxy | [devbox](docs/tools/devbox.md), [proxy notes](devcontainers/README.md#proxy) |
 | | Docker Desktop | [Apple container](docs/tools/apple-container.md) |
 | Local models | oMLX | [oMLX](docs/local-models/omlx.md), [models](docs/local-models/models.md) |

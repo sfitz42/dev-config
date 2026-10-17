@@ -5,7 +5,7 @@ How I set up and use this Mac. Start with [getting started](getting-started.md).
 ## Tools
 [zsh](tools/zsh.md) · [Starship](tools/starship.md) · [Ghostty](tools/ghostty.md) ·
 [Zed](tools/zed.md) · [Neovim](tools/neovim.md) · [gh and gh-stack](tools/gh-stack.md) ·
-[Apple container](tools/apple-container.md) · [devbox](tools/devbox.md)
+[Apple container](tools/apple-container.md) · [WSL containers](tools/wslc.md) · [devbox](tools/devbox.md)
 
 ## Local models on Apple silicon
 [The basics](local-models/apple-silicon-basics.md) · [Quantisation and memory](local-models/quantisation-and-memory.md) ·
@@ -17,7 +17,8 @@ How I set up and use this Mac. Start with [getting started](getting-started.md).
 
 ## Platforms
 
-Each page opens with a **Platform** line. Most of this repo is portable to any Unix; the Mac-specific
+Each page opens with a **Platform** line. The installer supports macOS and Linux (including WSL,
+tested on Fedora 43), and `devbox` runs on Apple `container` or WSL's `wslc`. The Mac-specific
 parts (Homebrew paths, DMG installs, Apple `container`, MLX/oMLX) are named in each page's
 "Beyond macOS" panel.
 

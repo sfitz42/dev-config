@@ -13,9 +13,11 @@ from pathlib import Path
 
 import yaml
 
+from . import platform
 from .core import REPO_ROOT, Ctx, err, expand, home, info, ok, step, warn
 
 BREW_BIN = "/opt/homebrew/bin"
+NATIVE = ("dnf", "apt")          # system package managers (Linux, need sudo)
 
 
 @dataclass
@@ -49,7 +51,10 @@ def load_manifest(root: Path = REPO_ROOT) -> dict:
 # ---- checks ---------------------------------------------------------------
 
 def _which(cmd: str) -> bool:
-    extra = [BREW_BIN, str(home() / ".local" / "bin"), "/usr/local/bin"]
+    # Where installers put things that may not be on PATH yet in this process
+    extra = [str(home() / ".local" / "bin"), "/usr/local/bin"]
+    if platform.os_name() == "macos":
+        extra.insert(0, BREW_BIN)
     path = os.pathsep.join([os.environ.get("PATH", ""), *extra])
     return shutil.which(cmd, path=path) is not None
 
@@ -58,8 +63,8 @@ def is_installed(check: dict) -> bool:
     (kind, value), = check.items()
     if kind in ("app", "dir"):
         return expand(value).exists()
-    if kind == "cmd":
-        return _which(value)
+    if kind == "cmd":                     # a name, or a list of alternatives (Debian's `fdfind`)
+        return any(_which(c) for c in ([value] if isinstance(value, str) else value))
     if kind == "gh_extension":
         if not _which("gh"):
             return False
@@ -75,7 +80,8 @@ def is_installed(check: dict) -> bool:
 # ---- source selection -----------------------------------------------------
 
 def ordered_sources(pkg: dict, defaults: dict, opts: Opts, prefer_local: list[str] | None = None) -> list[dict]:
-    sources = list(pkg.get("sources", []))
+    sources = [s for s in pkg.get("sources", []) if platform.supported(s)]
+    sources = [s for s in sources if s["type"] not in NATIVE or s["type"] == platform.pkg_manager()]
     if not defaults.get("brew_casks", False):
         sources = [s for s in sources if s["type"] != "brew-cask"]
     if opts.no_brew or not _which("brew"):
@@ -188,15 +194,55 @@ def _script(ctx, s, name):
         f = download(ctx, s["url"], Path(tmp), s.get("sha256"))
         if f is None:
             return False
-        return _ok(ctx.run(["/bin/sh", str(f)], check=False))
+        args = [str(expand(a)) if a.startswith("~") else a for a in s.get("args", [])]
+        return _ok(ctx.run([_interpreter(f), str(f), *args], check=False))
+
+
+def _interpreter(script: Path) -> str:
+    """bash for scripts that ask for it (/bin/sh is dash on Debian/Ubuntu), else /bin/sh."""
+    try:
+        first = script.read_text(errors="replace").split("\n", 1)[0]
+    except OSError:
+        return "/bin/sh"
+    return "bash" if first.startswith("#!") and "bash" in first else "/bin/sh"
+
+
+def _sudo_approved(ctx: Ctx) -> bool:
+    """Ask once per run before the first system package install."""
+    if ctx.dry_run:
+        return True
+    if "sudo" not in ctx.once:
+        ctx.once["sudo"] = ctx.confirm("  install system packages with sudo (dnf/apt)?")
+    return ctx.once["sudo"]
+
+
+def _dnf(ctx, s, name):
+    if not _sudo_approved(ctx):
+        warn("  skipped (sudo not approved; pass --yes to allow)")
+        return False
+    return _ok(ctx.run(["sudo", "dnf", "install", "-y", s["name"]], check=False))
+
+
+def _apt(ctx, s, name):
+    if not _sudo_approved(ctx):
+        warn("  skipped (sudo not approved; pass --yes to allow)")
+        return False
+    if not ctx.once.get("apt-update"):
+        ctx.once["apt-update"] = True
+        ctx.run(["sudo", "apt-get", "update"], check=False)
+    return _ok(ctx.run(["sudo", "env", "DEBIAN_FRONTEND=noninteractive",
+                        "apt-get", "install", "-y", s["name"]], check=False))
 
 
 HANDLERS = {"brew": _brew, "brew-cask": _brew_cask, "gh-extension": _gh_ext, "git": _git,
-            "dmg": _dmg, "pkg": _pkg, "script": _script}
+            "dmg": _dmg, "pkg": _pkg, "script": _script, "dnf": _dnf, "apt": _apt}
 
 
 def install_package(ctx: Ctx, name: str, pkg: dict, data: dict, opts: Opts) -> str:
-    """Returns: present | installed | manual | failed | skipped."""
+    """Returns: present | installed | manual | failed | skipped | unsupported."""
+    if not platform.supported(pkg):
+        info(f"- {name} (not for {platform.os_name()})")
+        return "unsupported"
     if is_installed(pkg["check"]):
         info(f"= {name} (present)")
         return "present"
@@ -238,6 +284,7 @@ def install_repos(ctx: Ctx, opts: Opts, root: Path = REPO_ROOT) -> None:
 
 
 def check_all(root: Path = REPO_ROOT) -> list[tuple[str, bool, bool]]:
-    """(name, installed, optional) for every package."""
+    """(name, installed, optional) for every package that applies to this OS."""
     data = load_manifest(root)
-    return [(n, is_installed(p["check"]), bool(p.get("optional"))) for n, p in data["packages"].items()]
+    return [(n, is_installed(p["check"]), bool(p.get("optional")))
+            for n, p in data["packages"].items() if platform.supported(p)]

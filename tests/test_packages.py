@@ -64,6 +64,76 @@ def test_unpinned_script_requires_approval(monkeypatch):
     assert packages._script(c, {"url": "https://x/install.sh", "pinned": False}, "p") is False
 
 
+class Rec(Ctx):
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.cmds = []
+
+    def run(self, cmd, **kw):
+        self.cmds.append(list(cmd))
+
+
+@pytest.fixture
+def on_linux(monkeypatch):
+    def set_(manager="dnf"):
+        monkeypatch.setattr(packages.platform, "os_name", lambda: "linux")
+        monkeypatch.setattr(packages.platform, "pkg_manager", lambda release=None: manager)
+    return set_
+
+
+def test_os_limited_sources_and_packages(on_linux):
+    on_linux("dnf")
+    pkg = {"sources": [{"type": "brew", "name": "x"}, {"type": "dnf", "name": "x"}, {"type": "apt", "name": "x"},
+                       {"type": "dmg", "url": "u", "os": ["macos"]}, {"type": "script", "url": "s", "os": ["linux"]}]}
+    # brew stays only because _which("brew") is faked; apt is dropped on a dnf distro, dmg on linux
+    assert [s["type"] for s in packages.ordered_sources(pkg, {}, packages.Opts())] == ["brew", "dnf", "script"]
+    mac_only = {"os": ["macos"], "check": {"cmd": "absent-cmd"}, "sources": []}
+    assert packages.install_package(Ctx(dry_run=True), "m", mac_only, {"defaults": {}}, packages.Opts()) == "unsupported"
+
+
+def test_native_installs_ask_once_and_apt_updates_once(on_linux, tmp_path):
+    on_linux("apt")
+    c = Rec(yes=True)
+    data = {"defaults": {}}
+    for n in ("a", "b"):
+        pkg = {"check": {"cmd": "absent-cmd"}, "sources": [{"type": "dnf", "name": n}, {"type": "apt", "name": n}]}
+        assert packages.install_package(c, n, pkg, data, packages.Opts()) == "installed"
+    assert c.cmds == [["sudo", "apt-get", "update"],
+                      ["sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "a"],
+                      ["sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "b"]]
+
+
+def test_native_install_skipped_without_sudo_approval(on_linux, monkeypatch):
+    on_linux("dnf")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False, raising=False)
+    c = Rec(yes=False)
+    assert packages._dnf(c, {"name": "x"}, "x") is False and c.cmds == []
+
+
+def test_cmd_check_accepts_alternatives():
+    assert packages.is_installed({"cmd": ["absent-cmd", "present-cmd"]})
+    assert not packages.is_installed({"cmd": ["absent-cmd", "nope"]})
+
+
+def test_script_interpreter_follows_shebang(tmp_path):
+    b = tmp_path / "b.sh"; b.write_text("#!/bin/bash\necho\n")
+    s = tmp_path / "s.sh"; s.write_text("#!/bin/sh\necho\n")
+    assert packages._interpreter(b) == "bash" and packages._interpreter(s) == "/bin/sh"
+    assert packages._interpreter(tmp_path / "missing") == "/bin/sh"
+
+
+def test_real_manifest_has_a_source_for_every_linux_package(monkeypatch):
+    """Every package that applies on Fedora (dnf) and Ubuntu (apt) has at least one usable source."""
+    monkeypatch.setattr(packages.platform, "os_name", lambda: "linux")
+    monkeypatch.setattr(packages, "_which", lambda cmd: False)          # no brew on Linux
+    data = packages.load_manifest()
+    for manager in ("dnf", "apt"):
+        monkeypatch.setattr(packages.platform, "pkg_manager", lambda release=None, m=manager: m)
+        for name, pkg in data["packages"].items():
+            if packages.platform.supported(pkg):
+                assert packages.ordered_sources(pkg, data["defaults"], packages.Opts()), f"{name} on {manager}"
+
+
 def test_local_override_excludes_and_prefers(tmp_path):
     (tmp_path / "local").mkdir()
     (tmp_path / "packages.yaml").write_text("packages:\n  a: {check: {cmd: a}, sources: []}\n  b: {check: {cmd: b}, sources: []}\n")

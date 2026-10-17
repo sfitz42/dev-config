@@ -64,6 +64,7 @@ class Ctx:
     linked: int = 0
     unchanged: int = 0
     backed_up: int = 0
+    once: dict[str, bool] = field(default_factory=dict)   # per-run one-off steps (sudo approval, apt update)
 
     @property
     def backup_dir(self) -> Path:

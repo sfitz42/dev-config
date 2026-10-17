@@ -5,12 +5,27 @@ from pathlib import Path
 import pytest
 
 
+def _can_symlink() -> bool:
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.symlink(__file__, os.path.join(d, "l"))
+            return True
+        except OSError:          # Windows without Developer Mode / admin
+            return False
+
+
+# The linker targets macOS and Linux/WSL; on Windows these tests need symlink rights
+needs_symlinks = pytest.mark.skipif(not _can_symlink(), reason="symlinks not available (Windows without Developer Mode)")
+
+
 @pytest.fixture
 def fake_home(tmp_path, monkeypatch):
     """A throwaway $HOME so nothing real is touched."""
     h = tmp_path / "home"
     h.mkdir()
     monkeypatch.setenv("HOME", str(h))
+    monkeypatch.setenv("USERPROFILE", str(h))   # what expanduser reads on Windows
     monkeypatch.delenv("XDG_STATE_HOME", raising=False)
     return h
 

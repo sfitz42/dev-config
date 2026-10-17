@@ -1,0 +1,4 @@
+# LF everywhere: shell scripts, zsh config and the image entrypoint break with CRLF, and Windows
+# checkouts (for devbox on wslc) would otherwise convert them. PowerShell scripts stay CRLF.
+* text=auto eol=lf
+*.ps1 text eol=crlf

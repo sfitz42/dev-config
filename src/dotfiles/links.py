@@ -7,12 +7,19 @@ from pathlib import Path
 
 import yaml
 
+from . import platform
 from .core import (REPO_ROOT, Ctx, copy_if_missing, ensure_dir, err, expand, home,
                    info, link_file, state_dir, step, warn)
 
 
 def load_modules(root: Path = REPO_ROOT) -> dict[str, list[dict]]:
     return yaml.safe_load((root / "links.yaml").read_text())["modules"]
+
+
+def module_supported(name: str, root: Path = REPO_ROOT) -> bool:
+    """False for modules that `module_os` in links.yaml limits to other OSes."""
+    limits = yaml.safe_load((root / "links.yaml").read_text()).get("module_os") or {}
+    return platform.supported({"os": limits.get(name)})
 
 
 def expand_entry(entry: dict, root: Path = REPO_ROOT) -> list[tuple[str, Path, Path | None]]:
@@ -52,6 +59,9 @@ def link_modules(ctx: Ctx, names: list[str], root: Path = REPO_ROOT) -> bool:
             err(f"unknown module: {name}")
             good = False
             continue
+        if not module_supported(name, root):
+            info(f"- {name} (not for {platform.os_name()})")
+            continue
         step(f"link: {name}")
         good &= apply_entries(ctx, modules[name], root)
     return good
@@ -61,6 +71,8 @@ def link_status(root: Path = REPO_ROOT) -> list[tuple[str, str, str]]:
     """(module, dst, state) for doctor. state: ok | missing | not-a-link | wrong-target."""
     rows = []
     for name, entries in load_modules(root).items():
+        if not module_supported(name, root):
+            continue
         for entry in entries:
             for kind, src, dst in expand_entry(entry, root):
                 if kind == "mkdir":

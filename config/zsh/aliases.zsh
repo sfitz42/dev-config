@@ -11,6 +11,8 @@ alias cr='claude -r'
 # Editor
 alias z.='zed .'
 
-# Apple `container`
-alias ce='container exec -it'
-alias cls='container list --all'
+# Apple `container` (macOS only)
+if (( $+commands[container] )); then
+  alias ce='container exec -it'
+  alias cls='container list --all'
+fi

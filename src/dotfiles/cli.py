@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import agents, links, packages
+from . import agents, links, packages, platform
 from .core import REPO_ROOT, Ctx, err, info, ok, step, warn
 
 LINK_MODULES = list(links.load_modules())
@@ -101,7 +101,7 @@ def cmd_uninstall(args) -> int:
     step("restore backed-up files")
     r = links.restore_backups(ctx)
     info(f"\nunlinked: {n}, restored: {r}" + (" (dry run)" if ctx.dry_run else ""))
-    info("Installed packages are left alone; remove them with brew or by hand.")
+    info("Installed packages are left alone; remove them with brew, dnf/apt or by hand.")
     return 0
 
 
@@ -129,6 +129,14 @@ def cmd_doctor(args) -> int:
         problems += 1
     else:
         ok("no private files tracked under local/")
+    if platform.is_wsl():
+        step("wsl")
+        if str(REPO_ROOT).startswith("/mnt/"):
+            warn(f"repo is on the Windows drive ({REPO_ROOT}): slow, and the links point across "
+                 "filesystems. Clone it into the distro instead (e.g. ~/.dev-config).")
+            problems += 1
+        else:
+            ok(f"repo is on the Linux filesystem ({REPO_ROOT})")
     info(f"\n{problems} problem(s)")
     return 1 if problems else 0
 

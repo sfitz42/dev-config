@@ -1,8 +1,11 @@
 import os
 from pathlib import Path
 
+from conftest import needs_symlinks
 from dotfiles import links
 from dotfiles.core import Ctx
+
+pytestmark = needs_symlinks
 
 
 def mk(tmp_path, **kw):
@@ -25,6 +28,16 @@ def test_status_reports_problems(fake_home, repo):
     (fake_home / ".zshrc").write_text("real file")
     rows = {Path(d).name: s for _, d, s in links.link_status(repo)}
     assert rows[".zshrc"] == "not-a-link" and rows["hostA"] == "missing"
+
+
+def test_module_os_skips_modules_for_other_oses(fake_home, repo, tmp_path, monkeypatch):
+    (repo / "links.yaml").write_text((repo / "links.yaml").read_text() + "module_os:\n  zed: [macos]\n")
+    monkeypatch.setattr(links.platform, "os_name", lambda: "linux")
+    assert links.link_modules(mk(tmp_path), ["zed"], root=repo)
+    assert not (fake_home / ".config/zed/settings.json").exists()
+    assert "zed" not in {m for m, _, _ in links.link_status(repo)}
+    monkeypatch.setattr(links.platform, "os_name", lambda: "macos")
+    assert "zed" in {m for m, _, _ in links.link_status(repo)}
 
 
 def test_unknown_module_fails(fake_home, repo, tmp_path):

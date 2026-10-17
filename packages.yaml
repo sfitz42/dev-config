@@ -1,17 +1,21 @@
 # packages.yaml: every tool this setup installs, with ordered install sources.
 #
 # Each package has:
-#   check:    how to tell it is already installed (app: path | cmd: name | dir: path | gh_extension: name)
+#   check:    how to tell it is already installed (app: path | cmd: name or [names] | dir: path |
+#             gh_extension: name)
 #   sources:  tried in order; the first usable one wins. Override with `--prefer a,b` or in
 #             local/packages.local.yaml (prefer / exclude / url overrides).
 #   admin:    true if the install needs sudo (the installer asks first)
+#   os:       optional [macos, linux]: the package (or a single source) only applies there.
+#             Linux includes WSL. Packages for other OSes are reported as "not for <os>".
 #
 # Source types:
-#   brew          formula                       {name}
+#   brew          formula (macOS)               {name}
 #   brew-cask     cask (OFF by default: casks fail on some managed Macs; set brew_casks: true)
 #   dmg           download, verify, copy .app   {url, sha256?, team_id, app}
 #   pkg           download, verify, installer   {url, sha256?, team_id}
-#   script        vendor install script         {url, sha256?}
+#   dnf / apt     system package (Linux, sudo)  {name}; only used on a distro with that manager
+#   script        vendor install script         {url, sha256?, args?}
 #   gh-extension  gh extension install          {repo}
 #   git           clone                         {url, dest, ref?}
 #   web           manual: prints the link
@@ -25,41 +29,66 @@ defaults:
 
 packages:
   # ---- shell and CLI --------------------------------------------------------
+  zsh:
+    os: [linux]                              # the default shell on macOS already
+    check: {cmd: zsh}
+    sources: [{type: dnf, name: zsh}, {type: apt, name: zsh}]
   gh:
     check: {cmd: gh}
-    sources: [{type: brew, name: gh}]
+    sources:
+      - {type: brew, name: gh}
+      - {type: dnf, name: gh}
+      - {type: apt, name: gh}                # Ubuntu's is old; cli.github.com has an apt repo
+      - {type: web, url: "https://github.com/cli/cli#installation"}
   gh-stack:
     check: {gh_extension: stack}
     sources: [{type: gh-extension, repo: github/gh-stack}]   # tested with v0.2.1
   starship:
     check: {cmd: starship}
-    sources: [{type: brew, name: starship}]
+    sources:
+      - {type: brew, name: starship}
+      - type: script                         # not packaged by Fedora/Ubuntu; vendor installer, unpinned
+        os: [linux]
+        url: https://starship.rs/install.sh
+        pinned: false
+        args: [--yes, --bin-dir, ~/.local/bin]
   neovim:
     check: {cmd: nvim}
-    sources: [{type: brew, name: neovim}]
+    sources:
+      - {type: brew, name: neovim}
+      - {type: dnf, name: neovim}
+      # no apt: Ubuntu 22.04 ships 0.6, too old for the nvim config (telescope needs 0.9+)
+      - {type: web, url: "https://github.com/neovim/neovim/blob/master/INSTALL.md#linux"}
   ripgrep:
     check: {cmd: rg}
-    sources: [{type: brew, name: ripgrep}]   # telescope live_grep
+    sources: [{type: brew, name: ripgrep}, {type: dnf, name: ripgrep}, {type: apt, name: ripgrep}]   # telescope live_grep
   fd:
-    check: {cmd: fd}
-    sources: [{type: brew, name: fd}]
+    check: {cmd: [fd, fdfind]}               # Debian/Ubuntu name the binary fdfind
+    sources: [{type: brew, name: fd}, {type: dnf, name: fd-find}, {type: apt, name: fd-find}]
   jq:
     check: {cmd: jq}
-    sources: [{type: brew, name: jq}]        # needed by devbox
+    sources: [{type: brew, name: jq}, {type: dnf, name: jq}, {type: apt, name: jq}]
   mise:
     check: {cmd: mise}
-    sources: [{type: brew, name: mise}]      # Node/Python version manager (replaces nvm)
+    sources:
+      - {type: brew, name: mise}             # Node/Python version manager (replaces nvm)
+      - {type: script, os: [linux], url: "https://mise.run", pinned: false}   # installs to ~/.local/bin
   uv:
     check: {cmd: uv}
-    sources: [{type: brew, name: uv}]
+    sources:
+      - {type: brew, name: uv}
+      - {type: dnf, name: uv}
+      - {type: script, os: [linux], url: "https://astral.sh/uv/install.sh", pinned: false}
   tinyproxy:
     optional: true                           # only for networks that block the container VM
+    os: [macos]                              # build.py only drives it with Apple `container`
     check: {cmd: tinyproxy}
     sources: [{type: brew, name: tinyproxy}]
   oh-my-zsh:
     check: {dir: ~/.oh-my-zsh}
     sources: [{type: git, url: "https://github.com/ohmyzsh/ohmyzsh.git", dest: ~/.oh-my-zsh}]
   font-meslo-nf:
+    os: [macos]                              # under WSL, fonts belong to the Windows terminal
     check: {font: "MesloLGS NF"}
     sources:
       - {type: brew-cask, name: font-meslo-for-powerlevel10k}
@@ -67,6 +96,7 @@ packages:
 
   # ---- apps -----------------------------------------------------------------
   ghostty:
+    os: [macos]                              # apps: under WSL these live on the Windows side
     check: {app: /Applications/Ghostty.app}
     sources:
       - {type: brew-cask, name: ghostty}
@@ -77,6 +107,7 @@ packages:
         app: Ghostty.app
       - {type: web, url: "https://ghostty.org/download"}
   zed:
+    os: [macos]
     check: {app: /Applications/Zed.app}
     sources:
       - {type: brew-cask, name: zed}
@@ -87,6 +118,7 @@ packages:
         app: Zed.app
       - {type: web, url: "https://zed.dev/download"}
   docker-desktop:
+    os: [macos]
     check: {app: /Applications/Docker.app}
     sources:
       - {type: brew-cask, name: docker-desktop}
@@ -97,6 +129,7 @@ packages:
         app: Docker.app
       - {type: web, url: "https://www.docker.com/products/docker-desktop/"}
   omlx:
+    os: [macos]
     check: {app: /Applications/oMLX.app}
     sources:
       - type: dmg                              # macOS 26 build; use the -macos15-sequoia asset on 15
@@ -106,6 +139,7 @@ packages:
         app: oMLX.app
       - {type: web, url: "https://github.com/jundot/omlx/releases"}
   apple-container:
+    os: [macos]
     admin: true
     check: {cmd: container}
     sources:

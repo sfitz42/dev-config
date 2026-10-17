@@ -9,7 +9,7 @@ ess() { ${EDITOR:-nvim} "$DOTFILES/config/ssh/config"; }
 reload() { exec zsh -l }
 
 # Recover a wedged Apple `container` runtime by killing its helper processes (asks first)
-container-reset() {
+(( $+commands[container] )) && container-reset() {
   local pat='container-(runtime-linux|network-vmnet|core-images|apiserver)'
   local pids; pids="$(pgrep -f "$pat")"
   [[ -z "$pids" ]] && { echo "no container helper processes running"; return 0 }

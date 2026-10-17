@@ -1,7 +1,10 @@
 import os
 from pathlib import Path
 
+from conftest import needs_symlinks
 from dotfiles.core import Ctx, backup_path, copy_if_missing, link_file
+
+pytestmark = needs_symlinks
 
 
 def ctx(tmp_path, **kw):

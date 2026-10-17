@@ -7,6 +7,13 @@
 #   {glob, dst_dir, exclude}    link every match into a directory (e.g. private host entries)
 #   {mkdir, mode}               create a directory with a mode
 # `src` and `glob` are relative to the repo root; `dst` may start with ~.
+#
+# module_os limits a module to some OSes (macos, linux; linux includes WSL). Modules not listed
+# apply everywhere.
+
+module_os:
+  ghostty: [macos]     # GUI apps: under WSL they run on the Windows side
+  zed: [macos]
 
 modules:
   zsh:
