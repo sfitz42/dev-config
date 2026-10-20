@@ -11,6 +11,7 @@ no upstream licence notice is needed. If that ever changes for a package, add a 
 
 | Package | Inspired by | Audit |
 |---|---|---|
+| `rewind` | arpagon/pi-rewind 0.5.0 | [AUDIT.md](packages/rewind/AUDIT.md) |
 | `todo-list` | tintinweb/pi-manage-todo-list 0.4.0 | [AUDIT.md](packages/todo-list/AUDIT.md) |
 
 ## Commands

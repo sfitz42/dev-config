@@ -87,6 +87,7 @@ packages are skipped with a warning.
 
 | Package | Inspired by | Audit |
 |---|---|---|
+| `rewind` | arpagon/pi-rewind 0.5.0 | [AUDIT.md](../../pi-extensions/packages/rewind/AUDIT.md) |
 | `todo-list` | tintinweb/pi-manage-todo-list 0.4.0 | [AUDIT.md](../../pi-extensions/packages/todo-list/AUDIT.md) |
 
 ### Installed: `pi-claude-marketplace`
