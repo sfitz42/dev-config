@@ -21,6 +21,7 @@ Existing files are backed up to `~/.config-backups/` before anything is replaced
 |---|---|
 | `config/` | zsh (split into modules), Starship, ssh, git, Ghostty, Zed, gh, mise |
 | `agents/` | per-assistant manifests: settings, marketplaces, plugins, extensions |
+| `pi-extensions/` | Pi extensions audited and reimplemented here instead of installed from npm ([how](pi-extensions/README.md)) |
 | `devcontainers/` | dev container images and the `devbox` launcher (Apple `container` or WSL `wslc`) |
 | `packages.yaml` | every tool, with ordered install sources (brew, DMG, pkg, dnf/apt, script) |
 | `local/` | git-ignored overrides for hosts, keys, proxies and certificates |

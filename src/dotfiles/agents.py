@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import string
 import subprocess
 from pathlib import Path
@@ -154,20 +155,44 @@ def sync_claude(ctx: Ctx, m: dict) -> None:
             ctx.run(["claude", "plugin", "install", spec], check=False)
 
 
-def sync_pi(ctx: Ctx, m: dict) -> None:
+PI_WORKSPACE = "pi-extensions"   # pnpm workspace holding the audited local extensions
+
+
+def _pi_source(src: str, root: Path) -> str:
+    """`./path` sources are repo-relative; `pi list` shows a local package by its absolute path."""
+    return str((root / src).resolve()) if src.startswith("./") else src
+
+
+def _install_pi_workspace(ctx: Ctx, root: Path) -> bool:
+    """Install the local extensions' dependencies (Pi does not install them for local packages)."""
+    if shutil.which("pnpm") is None:
+        warn("pi: pnpm not found (mise provides it with node); skipping local extensions")
+        return False
+    info(f"~ {PI_WORKSPACE}: pnpm install")
+    ctx.run(["pnpm", "install", "--frozen-lockfile"], cwd=root / PI_WORKSPACE, check=False)
+    return True
+
+
+def sync_pi(ctx: Ctx, m: dict, root: Path = REPO_ROOT) -> None:
     listed = _capture(["pi", "list"])
     if listed is None:
         warn("pi: `pi list` failed (is node on PATH? try from an interactive shell); skipping extensions")
         return
-    for src in m.get("extensions", []):
-        if src in listed:
+    have = {line.strip() for line in listed.splitlines()}
+    wanted = m.get("extensions", [])
+    locals_ok = not any(s.startswith("./") for s in wanted) or _install_pi_workspace(ctx, root)
+    for src in wanted:
+        if src.startswith("./") and not locals_ok:
+            continue
+        source = _pi_source(src, root)
+        if source in have:
             info(f"= extension {src}")
         else:
             info(f"+ extension {src}")
-            ctx.run(["pi", "install", src], check=False)
+            ctx.run(["pi", "install", source], check=False)
 
 
-STEPS = {"claude": sync_claude, "pi": sync_pi}
+STEPS = {"claude": sync_claude}   # pi is called with the repo root (sync_pi)
 
 
 def sync(ctx: Ctx, only: list[str] | None = None, root: Path = REPO_ROOT, opts: packages.Opts | None = None) -> bool:
@@ -191,7 +216,9 @@ def sync(ctx: Ctx, only: list[str] | None = None, root: Path = REPO_ROOT, opts: 
             sync_models(ctx, m["models"], root, env)
         if m.get("links"):
             links.apply_entries(ctx, m["links"], root)
-        if name in STEPS:
+        if name == "pi":
+            sync_pi(ctx, m, root)
+        elif name in STEPS:
             STEPS[name](ctx, m)
     return True
 

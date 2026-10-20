@@ -127,3 +127,48 @@ def test_pinned_extension_is_matched_by_exact_source(monkeypatch, tmp_path):
     c = mk(tmp_path)
     agents.sync_pi(c, {"extensions": ["npm:pkg@0.20.1"]})
     assert c.cmds == []
+
+
+def test_source_must_match_a_whole_line(monkeypatch, tmp_path):
+    monkeypatch.setattr(agents, "_capture", lambda cmd: "User packages:\n  npm:pkg@0.20.10\n")
+    c = mk(tmp_path)
+    agents.sync_pi(c, {"extensions": ["npm:pkg@0.20.1"]})
+    assert c.cmds == [["pi", "install", "npm:pkg@0.20.1"]]
+
+
+@pytest.fixture
+def pi_repo(tmp_path, monkeypatch):
+    root = tmp_path / "repo"
+    (root / "pi-extensions/packages/todo-list").mkdir(parents=True)
+    monkeypatch.setattr(agents.shutil, "which", lambda name: f"/bin/{name}")
+    return root
+
+
+def test_local_extension_installs_workspace_then_absolute_path(monkeypatch, tmp_path, pi_repo):
+    monkeypatch.setattr(agents, "_capture", lambda cmd: "User packages:\n")
+    c = mk(tmp_path)
+    agents.sync_pi(c, {"extensions": ["./pi-extensions/packages/todo-list"]}, pi_repo)
+    pkg = str((pi_repo / "pi-extensions/packages/todo-list").resolve())
+    assert c.cmds == [["pnpm", "install", "--frozen-lockfile"], ["pi", "install", pkg]]
+
+
+def test_local_extension_matched_by_installed_path(monkeypatch, tmp_path, pi_repo):
+    pkg = str((pi_repo / "pi-extensions/packages/todo-list").resolve())
+    listed = f"User packages:\n  ../../repo/pi-extensions/packages/todo-list\n    {pkg}\n"
+    monkeypatch.setattr(agents, "_capture", lambda cmd: listed)
+    c = mk(tmp_path)
+    agents.sync_pi(c, {"extensions": ["./pi-extensions/packages/todo-list"]}, pi_repo)
+    assert c.cmds == [["pnpm", "install", "--frozen-lockfile"]]    # deps refreshed, nothing reinstalled
+
+
+def test_workspace_installed_once_and_skipped_without_pnpm(monkeypatch, tmp_path, pi_repo):
+    monkeypatch.setattr(agents, "_capture", lambda cmd: "User packages:\n")
+    exts = {"extensions": ["./pi-extensions/packages/a", "./pi-extensions/packages/b", "npm:x@1"]}
+    c = mk(tmp_path)
+    agents.sync_pi(c, exts, pi_repo)
+    assert [cmd[0] for cmd in c.cmds] == ["pnpm", "pi", "pi", "pi"]
+
+    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
+    c = mk(tmp_path)
+    agents.sync_pi(c, exts, pi_repo)
+    assert c.cmds == [["pi", "install", "npm:x@1"]]               # local ones skipped, npm still synced
