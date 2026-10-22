@@ -1,3 +1,7 @@
+# The following lines were added by Docker Desktop to add commands to your PATH.
+export PATH="$PATH:/Users/shaun/.docker/bin"
+# End of Docker Desktop section.
+
 # .zprofile: login shells. PATH-style setup that needs to happen once per login.
 
 # Homebrew (Apple Silicon default location)
