@@ -1,8 +1,25 @@
 packages:
   - packages/*
+  - '!packages/guardrails'   # unfinished; not committed yet
 
 # Never run dependency build scripts. These come in through Pi's own packages
 # (dev-only, for types); listing them as denied keeps pnpm from failing.
 allowBuilds:
   '@google/genai': false
   protobufjs: false
+  # lsp grammars: only their prebuilt .wasm is used, never the native binding
+  '@tree-sitter-grammars/tree-sitter-lua': false
+  tree-sitter-bash: false
+  tree-sitter-c: false
+  tree-sitter-cpp: false
+  tree-sitter-css: false
+  tree-sitter-go: false
+  tree-sitter-html: false
+  tree-sitter-java: false
+  tree-sitter-javascript: false
+  tree-sitter-json: false
+  tree-sitter-python: false
+  tree-sitter-ruby: false
+  tree-sitter-rust: false
+  tree-sitter-scala: false
+  tree-sitter-typescript: false

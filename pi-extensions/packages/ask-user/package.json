@@ -1,0 +1,18 @@
+{
+  "name": "@dev-config/pi-ask-user",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An ask_user tool for Pi: questions with choices, batches and freeform answers",
+  "keywords": ["pi-package"],
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"],
+    "skills": ["./skills"]
+  }
+}

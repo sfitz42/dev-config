@@ -10,5 +10,7 @@ models:
 extensions:           # sources as `pi install` takes them; pin with @version (npm) or @tag/@commit (git)
   - npm:pi-claude-marketplace@0.20.1   # use Claude plugin marketplaces (e.g. defra-aice) from Pi
   # Audited local packages (./ = repo-relative; see pi-extensions/README.md)
+  - ./pi-extensions/packages/ask-user
+  - ./pi-extensions/packages/lsp
   - ./pi-extensions/packages/rewind
   - ./pi-extensions/packages/todo-list

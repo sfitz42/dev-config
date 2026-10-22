@@ -11,6 +11,8 @@ no upstream licence notice is needed. If that ever changes for a package, add a 
 
 | Package | Inspired by | Audit |
 |---|---|---|
+| `ask-user` | edlsh/pi-ask-user 0.17.0 | [AUDIT.md](packages/ask-user/AUDIT.md) |
+| `lsp` | samfoy/pi-lsp-extension 1.4.0 | [AUDIT.md](packages/lsp/AUDIT.md) |
 | `rewind` | arpagon/pi-rewind 0.5.0 | [AUDIT.md](packages/rewind/AUDIT.md) |
 | `todo-list` | tintinweb/pi-manage-todo-list 0.4.0 | [AUDIT.md](packages/todo-list/AUDIT.md) |
 
