@@ -12,7 +12,8 @@
     "typecheck": "pnpm -r --parallel exec tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "audit": "pnpm audit --prod",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm audit"
+    "schema:check": "pnpm -r --if-present run schema:check",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm schema:check && pnpm audit"
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "1.3.0",

@@ -1,0 +1,25 @@
+{
+  "name": "@dev-config/pi-guardrails",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "File policies, outside-workspace path access and dangerous command confirmation for Pi",
+  "keywords": ["pi-package"],
+  "scripts": {
+    "schema": "node scripts/write-schema.ts",
+    "schema:check": "node scripts/write-schema.ts --check"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./src/path-access/index.ts",
+      "./src/index.ts",
+      "./src/permission-gate/index.ts",
+      "./src/herdr/index.ts"
+    ]
+  }
+}

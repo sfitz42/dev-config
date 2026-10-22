@@ -1,0 +1,348 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Guardrails settings",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string",
+      "description": "Config format marker, managed by guardrails."
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Turn all checks on or off."
+    },
+    "applyBuiltinDefaults": {
+      "type": "boolean",
+      "description": "Include the built-in policy rules before user rules."
+    },
+    "onboarding": {
+      "type": "object",
+      "properties": {
+        "completed": {
+          "type": "boolean"
+        },
+        "completedAt": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "properties": {
+        "policies": {
+          "type": "boolean"
+        },
+        "permissionGate": {
+          "type": "boolean"
+        },
+        "pathAccess": {
+          "type": "boolean"
+        },
+        "protectEnvFiles": {
+          "type": "boolean",
+          "description": "Deprecated; migrated to policies."
+        }
+      }
+    },
+    "policies": {
+      "type": "object",
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "patterns",
+              "protection"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Stable id; a rule with the same id in a later scope replaces this one."
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "patterns": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "pattern"
+                  ],
+                  "properties": {
+                    "pattern": {
+                      "type": "string",
+                      "description": "Glob or substring; regex when regex is true."
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "Shown to the agent when the pattern triggers."
+                    },
+                    "regex": {
+                      "type": "boolean",
+                      "description": "Match as a regular expression."
+                    }
+                  }
+                },
+                "description": "Files the rule protects."
+              },
+              "allowedPatterns": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "pattern"
+                  ],
+                  "properties": {
+                    "pattern": {
+                      "type": "string",
+                      "description": "Glob or substring; regex when regex is true."
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "Shown to the agent when the pattern triggers."
+                    },
+                    "regex": {
+                      "type": "boolean",
+                      "description": "Match as a regular expression."
+                    }
+                  }
+                },
+                "description": "Exceptions."
+              },
+              "protection": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "none"
+                  },
+                  {
+                    "type": "string",
+                    "const": "readOnly"
+                  },
+                  {
+                    "type": "string",
+                    "const": "noAccess"
+                  }
+                ],
+                "description": "noAccess blocks reads and writes; readOnly blocks writes."
+              },
+              "onlyIfExists": {
+                "type": "boolean",
+                "description": "Only block files that exist. Default true."
+              },
+              "respectCwd": {
+                "type": "boolean",
+                "description": "Ignore ~- and /-anchored patterns for files inside the working directory. Default true."
+              },
+              "blockMessage": {
+                "type": "string",
+                "description": "Supports {file}."
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Default true."
+              }
+            }
+          }
+        }
+      }
+    },
+    "pathAccess": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "allow"
+            },
+            {
+              "type": "string",
+              "const": "ask"
+            },
+            {
+              "type": "string",
+              "const": "block"
+            }
+          ]
+        },
+        "applyTo": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "all"
+            },
+            {
+              "type": "string",
+              "const": "write"
+            }
+          ],
+          "description": "write: only gate writes; reads by read/grep/find/ls pass."
+        },
+        "allowedPaths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "path"
+            ],
+            "properties": {
+              "kind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "file"
+                  },
+                  {
+                    "type": "string",
+                    "const": "directory"
+                  }
+                ]
+              },
+              "path": {
+                "type": "string",
+                "description": "Absolute or ~/ path."
+              }
+            }
+          }
+        },
+        "alwaysScope": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "local"
+            },
+            {
+              "type": "string",
+              "const": "global"
+            }
+          ],
+          "description": "Where \"always\" grants are saved."
+        }
+      }
+    },
+    "permissionGate": {
+      "type": "object",
+      "properties": {
+        "patterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "pattern",
+              "description"
+            ],
+            "properties": {
+              "pattern": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string",
+                "description": "Shown in the confirmation prompt."
+              },
+              "regex": {
+                "type": "boolean"
+              }
+            }
+          },
+          "description": "Added to the default dangerous patterns."
+        },
+        "customPatterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "pattern",
+              "description"
+            ],
+            "properties": {
+              "pattern": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string",
+                "description": "Shown in the confirmation prompt."
+              },
+              "regex": {
+                "type": "boolean"
+              }
+            }
+          },
+          "description": "Replaces the default patterns and built-in matchers."
+        },
+        "requireConfirmation": {
+          "type": "boolean",
+          "description": "Prompt for dangerous commands; when false, only warn."
+        },
+        "allowedPatterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "pattern"
+            ],
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "Glob or substring; regex when regex is true."
+              },
+              "description": {
+                "type": "string",
+                "description": "Shown to the agent when the pattern triggers."
+              },
+              "regex": {
+                "type": "boolean",
+                "description": "Match as a regular expression."
+              }
+            }
+          },
+          "description": "Commands that skip the prompt. Matched per simple command."
+        },
+        "autoDenyPatterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "pattern"
+            ],
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "Glob or substring; regex when regex is true."
+              },
+              "description": {
+                "type": "string",
+                "description": "Shown to the agent when the pattern triggers."
+              },
+              "regex": {
+                "type": "boolean",
+                "description": "Match as a regular expression."
+              }
+            }
+          },
+          "description": "Commands blocked without a prompt."
+        }
+      }
+    },
+    "envFiles": {
+      "type": "object",
+      "properties": {},
+      "description": "Deprecated; migrated to policies.",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

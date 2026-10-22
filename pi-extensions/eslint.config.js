@@ -29,8 +29,13 @@ export default [
     }
   },
   {
-    // Pi loads an extension through its default-exported factory.
-    files: ['packages/*/src/index.ts', '*.config.ts'],
+    // Pi loads an extension through its default-exported factory. List each
+    // `pi.extensions` entry that is not a package's src/index.ts here.
+    files: [
+      'packages/*/src/index.ts',
+      'packages/guardrails/src/{path-access,permission-gate,herdr}/index.ts',
+      '*.config.ts'
+    ],
     rules: {
       'no-restricted-syntax': ['error', noWildcardImports]
     }

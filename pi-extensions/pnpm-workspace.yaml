@@ -1,6 +1,5 @@
 packages:
   - packages/*
-  - '!packages/guardrails'   # unfinished; not committed yet
 
 # Never run dependency build scripts. These come in through Pi's own packages
 # (dev-only, for types); listing them as denied keeps pnpm from failing.

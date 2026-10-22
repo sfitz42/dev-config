@@ -88,6 +88,7 @@ packages are skipped with a warning.
 | Package | Inspired by | Audit |
 |---|---|---|
 | `ask-user` | edlsh/pi-ask-user 0.17.0 | [AUDIT.md](../../pi-extensions/packages/ask-user/AUDIT.md) |
+| `guardrails` | aliou/pi-guardrails 0.19.0 | [AUDIT.md](../../pi-extensions/packages/guardrails/AUDIT.md) |
 | `lsp` | samfoy/pi-lsp-extension 1.4.0 | [AUDIT.md](../../pi-extensions/packages/lsp/AUDIT.md) |
 | `rewind` | arpagon/pi-rewind 0.5.0 | [AUDIT.md](../../pi-extensions/packages/rewind/AUDIT.md) |
 | `todo-list` | tintinweb/pi-manage-todo-list 0.4.0 | [AUDIT.md](../../pi-extensions/packages/todo-list/AUDIT.md) |
