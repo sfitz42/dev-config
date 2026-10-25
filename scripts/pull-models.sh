@@ -15,6 +15,9 @@ models=(
 )
 
 org="mlx-community"
+# Exact pin (AICE style guide 1.4); the exclude-newer window also holds back transitive dependencies.
+hf_version="2.2.0"
+exclude_newer="1 week"
 model_dir="${OMLX_MODEL_DIR:-$HOME/.omlx/models}"
 
 command -v uvx >/dev/null || { echo "uvx not found on PATH (install uv)" >&2; exit 1; }
@@ -27,7 +30,7 @@ fi
 
 for name in "${selected[@]}"; do
   echo "Pulling $org/$name"
-  uvx --from huggingface_hub hf download "$org/$name" --local-dir "$model_dir/$org/$name"
+  uvx --exclude-newer "$exclude_newer" --from "huggingface_hub==$hf_version" hf download "$org/$name" --local-dir "$model_dir/$org/$name"
 done
 
 echo "Done. Restart the server to pick up new models: omlx restart"

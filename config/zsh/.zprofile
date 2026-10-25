@@ -11,3 +11,12 @@ export PATH="$PATH:/Users/shaun/.docker/bin"
 [[ -d "$HOME/.docker/bin" ]] && path+=("$HOME/.docker/bin")
 
 [[ -r "$DOTFILES/local/zprofile.local" ]] && source "$DOTFILES/local/zprofile.local"
+
+##
+# Your previous /Users/shaun/.zprofile file was backed up as /Users/shaun/.zprofile.macports-saved_2026-10-23_at_02:25:20
+##
+
+# MacPorts Installer addition on 2026-10-23_at_02:25:20: adding an appropriate PATH variable for use with MacPorts.
+export PATH="/opt/local/bin:/opt/local/sbin:$PATH"
+# Finished adapting your PATH environment variable for use with MacPorts.
+

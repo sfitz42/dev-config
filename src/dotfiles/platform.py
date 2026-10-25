@@ -1,9 +1,11 @@
 """Which machine we are on: OS, WSL, and the native package manager."""
+
 from __future__ import annotations
 
+import functools
+import pathlib
 import sys
-from functools import cache
-from pathlib import Path
+from typing import Any
 
 
 def os_name() -> str:
@@ -15,16 +17,16 @@ def os_name() -> str:
     return "linux"
 
 
-@cache
+@functools.cache
 def is_wsl() -> bool:
     try:
-        return "microsoft" in Path("/proc/sys/kernel/osrelease").read_text().lower()
+        return "microsoft" in pathlib.Path("/proc/sys/kernel/osrelease").read_text().lower()
     except OSError:
         return False
 
 
-def os_release(path: Path = Path("/etc/os-release")) -> dict[str, str]:
-    out = {}
+def os_release(path: pathlib.Path = pathlib.Path("/etc/os-release")) -> dict[str, str]:
+    out: dict[str, str] = {}
     try:
         for line in path.read_text().splitlines():
             if "=" in line:
@@ -48,7 +50,7 @@ def pkg_manager(release: dict[str, str] | None = None) -> str | None:
     return None
 
 
-def supported(entry: dict, current: str | None = None) -> bool:
+def supported(entry: dict[str, Any], current: str | None = None) -> bool:
     """True if an entry with an optional `os: [..]` list applies to this OS."""
     wanted = entry.get("os")
     return not wanted or (current or os_name()) in wanted
