@@ -21,7 +21,7 @@ OpenAI-compatible endpoint, which makes it the natural front end for a local mod
 | The CLI | `packages.yaml` → vendor script `https://pi.dev/install.sh` (unpinned), installs to `~/.local/bin/pi` |
 | Settings | `agents/pi/settings.json` merged into `~/.pi/agent/settings.json`: default provider `omlx`, default model `Qwen3.6-35B-A3B-4bit` |
 | Providers and models | `agents/pi/models.json.tmpl` rendered to `~/.pi/agent/models.json` |
-| Extensions | `extensions:` in the manifest, installed with `pi install` (none yet) |
+| Extensions | `extensions:` in the manifest, installed with `pi install`: one npm package, plus the [audited local packages](#audited-local-extensions) |
 
 ## The local provider
 
@@ -65,6 +65,33 @@ show. Browse packages at <https://pi.dev/packages>.
 > Packages can execute code and influence the agent. Pin a version, and skim the source before
 > installing: `npm pack <pkg>@<version> --ignore-scripts` into a scratch directory, read it, and
 > check its dependencies for install-time scripts.
+
+### Audited local extensions
+
+Rather than install third-party extensions, I keep reimplementations in
+[`pi-extensions/`](../../pi-extensions/README.md), a pnpm workspace in this repo. Each package takes
+its features from an upstream extension, not its code: the upstream is audited, and its findings
+and a functional spec go in the package's `AUDIT.md`. The code is written fresh from that spec.
+
+They are listed in the manifest as repo-relative paths:
+
+```yaml
+extensions:
+  - ./pi-extensions/packages/todo-list
+```
+
+For `./` sources the sync runs `pnpm install --frozen-lockfile` in `pi-extensions/` first (Pi does
+not install a local package's dependencies), then `pi install`s the absolute path. Pi loads the
+TypeScript in place, so edits take effect on the next `/reload`. Without `pnpm` on `PATH` the local
+packages are skipped with a warning.
+
+| Package | Inspired by | Audit |
+|---|---|---|
+| `ask-user` | edlsh/pi-ask-user 0.17.0 | [AUDIT.md](../../pi-extensions/packages/ask-user/AUDIT.md) |
+| `guardrails` | aliou/pi-guardrails 0.19.0 | [AUDIT.md](../../pi-extensions/packages/guardrails/AUDIT.md) |
+| `lsp` | samfoy/pi-lsp-extension 1.4.0 | [AUDIT.md](../../pi-extensions/packages/lsp/AUDIT.md) |
+| `rewind` | arpagon/pi-rewind 0.5.0 | [AUDIT.md](../../pi-extensions/packages/rewind/AUDIT.md) |
+| `todo-list` | tintinweb/pi-manage-todo-list 0.4.0 | [AUDIT.md](../../pi-extensions/packages/todo-list/AUDIT.md) |
 
 ### Installed: `pi-claude-marketplace`
 

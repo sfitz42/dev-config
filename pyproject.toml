@@ -1,16 +1,49 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
 [project]
 name = "dotfiles"
 version = "0.1.0"
 description = "Installer for dev-config: links, packages, agents"
 requires-python = ">=3.11"
-dependencies = ["pyyaml==6.*"]
+dependencies = ["pyyaml==6.0.3", "rich==15.0.0", "textual==8.2.8"]
+
+[project.scripts]
+dotfiles = "dotfiles.cli:main"
+conjure = "dotfiles.wizard.app:main"
 
 [dependency-groups]
-dev = ["pytest==8.*"]
+dev = [
+    "mypy==2.4.0",
+    "pytest==8.4.2",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.17.0",
+    "types-pyyaml==6.0.12.20260906",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dotfiles"]
 
 [tool.uv]
-package = false   # run from source: scripts/dotfiles sets PYTHONPATH=src
+exclude-newer = "1 week"
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "TID252"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.mypy]
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+explicit_package_bases = true
+mypy_path = "src"

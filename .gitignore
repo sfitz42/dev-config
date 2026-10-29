@@ -21,6 +21,9 @@
 __pycache__/
 .pytest_cache/
 
+# Node (pi-extensions workspace)
+node_modules/
+
 # zsh completion caches (machine-specific; contain host and user paths)
 .zcompdump*
 zcompdump*

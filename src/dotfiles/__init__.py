@@ -1,1 +1,0 @@
-"""Installer for dev-config."""

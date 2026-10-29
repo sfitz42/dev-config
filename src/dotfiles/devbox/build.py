@@ -13,25 +13,26 @@ Proxy (optional, for networks that block the container VM):
     is reachable from builds as host.wslc.internal)
 Proxy build args are only used while building; they are not stored in the image.
 """
+
 from __future__ import annotations
 
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
 import time
-from pathlib import Path
 
-from ..core import REPO_ROOT
-from .runtime import AppleContainer, DevboxError, Runtime
+from dotfiles import core
+from dotfiles.devbox import runtime
 
-CONTEXT = REPO_ROOT / "devcontainers"
+CONTEXT = core.REPO_ROOT / "devcontainers"
 TARGETS = ("core", "fullstack", "all")
 BRIDGE_HOST, BRIDGE_PORT = "192.168.64.1", 8888
-PIDFILE = Path("/tmp/tinyproxy.pid")
+PIDFILE = pathlib.Path("/tmp/tinyproxy.pid")
 
 
-def stage(repo: Path = REPO_ROOT, context: Path = CONTEXT) -> None:
+def stage(repo: pathlib.Path = core.REPO_ROOT, context: pathlib.Path = CONTEXT) -> None:
     cfg = context / "config"
     shutil.rmtree(cfg, ignore_errors=True)
     cfg.mkdir(parents=True)
@@ -46,7 +47,7 @@ def stage(repo: Path = REPO_ROOT, context: Path = CONTEXT) -> None:
 
 
 def proxy_args(url: str) -> list[str]:
-    args = []
+    args: list[str] = []
     for k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
         args += ["--build-arg", f"{k}={url}"]
     for k in ("NO_PROXY", "no_proxy"):
@@ -54,7 +55,7 @@ def proxy_args(url: str) -> list[str]:
     return args
 
 
-def _pid_alive(pidfile: Path) -> bool:
+def _pid_alive(pidfile: pathlib.Path) -> bool:
     try:
         os.kill(int(pidfile.read_text().strip()), 0)
         return True
@@ -62,11 +63,11 @@ def _pid_alive(pidfile: Path) -> bool:
         return False
 
 
-def _start_tinyproxy(conf: Path) -> None:
+def _start_tinyproxy(conf: pathlib.Path) -> None:
     if not shutil.which("tinyproxy"):
-        raise DevboxError("tinyproxy not found: brew install tinyproxy")
+        raise runtime.DevboxError("tinyproxy not found: brew install tinyproxy")
     if not conf.exists():
-        raise DevboxError(f"USE_PROXY=1 needs {conf}")
+        raise runtime.DevboxError(f"USE_PROXY=1 needs {conf}")
 
     def bridge_up() -> bool:
         out = subprocess.run(["ifconfig", "bridge100"], capture_output=True, text=True).stdout
@@ -77,13 +78,13 @@ def _start_tinyproxy(conf: Path) -> None:
             break
         time.sleep(1)
     else:
-        raise DevboxError(f"bridge100 never got {BRIDGE_HOST}")
+        raise runtime.DevboxError(f"bridge100 never got {BRIDGE_HOST}")
     if not _pid_alive(PIDFILE):
         subprocess.run(["tinyproxy", "-c", str(conf)], check=True)
         time.sleep(1)
 
 
-def resolve_proxy(rt: Runtime, repo: Path = REPO_ROOT) -> str:
+def resolve_proxy(rt: runtime.Runtime, repo: pathlib.Path = core.REPO_ROOT) -> str:
     """The proxy URL for this build, or '' (starting tinyproxy where that applies)."""
     if os.environ.get("BUILD_PROXY"):
         return os.environ["BUILD_PROXY"]
@@ -91,18 +92,29 @@ def resolve_proxy(rt: Runtime, repo: Path = REPO_ROOT) -> str:
     use = os.environ.get("USE_PROXY", "1" if conf.exists() else "0") == "1"
     if not use:
         return ""
-    if not isinstance(rt, AppleContainer):
-        raise DevboxError(f"the tinyproxy setup is for Apple `container`; with {rt.name} set "
-                          "BUILD_PROXY=http://host.wslc.internal:<port> (or USE_PROXY=0)")
+    if not isinstance(rt, runtime.AppleContainer):
+        raise runtime.DevboxError(
+            f"the tinyproxy setup is for Apple `container`; with {rt.name} set "
+            "BUILD_PROXY=http://host.wslc.internal:<port> (or USE_PROXY=0)"
+        )
     _start_tinyproxy(conf)
     return f"http://{BRIDGE_HOST}:{BRIDGE_PORT}"
 
 
 def build_args(tag: str, dockerfile: str, proxy: str, extra: list[str]) -> list[str]:
-    return ["build", *(proxy_args(proxy) if proxy else []), "-t", tag, "-f", dockerfile, *extra, "."]
+    return [
+        "build",
+        *(proxy_args(proxy) if proxy else []),
+        "-t",
+        tag,
+        "-f",
+        dockerfile,
+        *extra,
+        ".",
+    ]
 
 
-def main(rt: Runtime, argv: list[str]) -> int:
+def main(rt: runtime.Runtime, argv: list[str]) -> int:
     target = "all"
     if argv and argv[0] in TARGETS:
         target, argv = argv[0], argv[1:]
@@ -117,11 +129,17 @@ def main(rt: Runtime, argv: list[str]) -> int:
         print(f"==> {rt.cli} {' '.join(args)}", file=sys.stderr)
         r = subprocess.run([rt.cli, *args], cwd=CONTEXT)
         if r.returncode != 0:
-            raise DevboxError(f"build failed (exit {r.returncode})")
+            raise runtime.DevboxError(f"build failed (exit {r.returncode})")
 
     if target in ("core", "all"):
         run(build_args(core_tag, "images/core.Dockerfile", proxy, argv))
     if target in ("fullstack", "all"):
-        run(build_args(full_tag, "images/dev-fullstack.Dockerfile", proxy,
-                       ["--build-arg", f"CORE_IMAGE={core_tag}", *argv]))
+        run(
+            build_args(
+                full_tag,
+                "images/dev-fullstack.Dockerfile",
+                proxy,
+                ["--build-arg", f"CORE_IMAGE={core_tag}", *argv],
+            )
+        )
     return 0

@@ -7,8 +7,13 @@ Built to be taken in pieces.
 ```sh
 git clone <this repo> ~/.dev-config && cd ~/.dev-config
 ./scripts/bootstrap.sh --dry-run      # preview, changes nothing
-./scripts/bootstrap.sh                # Command Line Tools -> Homebrew -> uv -> everything
+./scripts/bootstrap.sh                # Command Line Tools -> Homebrew -> uv -> the wizard
 ```
+
+After that, `scripts/dotfiles` (or `uv run conjure`) opens **conjure** 🪄, an interactive installer
+that detects the platform, lets you choose what to install and handles updates. Every step is
+also a plain command for scripts: `scripts/dotfiles install|update|doctor …`
+([getting started](docs/getting-started.md#the-wizard-)).
 
 Linux and WSL use the same two commands (dnf/apt instead of Homebrew; clone inside the distro). On
 Windows, `scripts\bootstrap.ps1` checks WSL and installs uv, and `devbox` runs on
@@ -21,6 +26,7 @@ Existing files are backed up to `~/.config-backups/` before anything is replaced
 |---|---|
 | `config/` | zsh (split into modules), Starship, ssh, git, Ghostty, Zed, gh, mise |
 | `agents/` | per-assistant manifests: settings, marketplaces, plugins, extensions |
+| `pi-extensions/` | Pi extensions audited and reimplemented here instead of installed from npm ([how](pi-extensions/README.md)) |
 | `devcontainers/` | dev container images and the `devbox` launcher (Apple `container` or WSL `wslc`) |
 | `packages.yaml` | every tool, with ordered install sources (brew, DMG, pkg, dnf/apt, script) |
 | `local/` | git-ignored overrides for hosts, keys, proxies and certificates |

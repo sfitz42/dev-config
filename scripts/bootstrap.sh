@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fresh-machine entry point. Installs just enough to run the Python installer, then hands over to
-# `scripts/dotfiles install`:
+# the conjure wizard (on a terminal, with no options) or `scripts/dotfiles install`:
 #   macOS:        Xcode Command Line Tools -> Homebrew -> uv
 #   Linux / WSL:  git, curl, zsh (dnf or apt, with sudo) -> uv
 #
@@ -88,7 +88,11 @@ say "Running installer"
 if [ "$DRY" = 1 ] && { [ ! -x "$REPO/scripts/dotfiles" ] || ! command -v uv >/dev/null 2>&1; }; then
   echo "[dry-run] $REPO/scripts/dotfiles install $*"; exit 0
 fi
-"$REPO/scripts/dotfiles" install "$@"
+if [ $# -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
+  "$REPO/scripts/dotfiles" conjure     # interactive: the wizard picks what to install
+else
+  "$REPO/scripts/dotfiles" install "$@"
+fi
 
 if [ "$(uname -s)" = Linux ] && [ "$(basename "${SHELL:-}")" != zsh ]; then
   echo
