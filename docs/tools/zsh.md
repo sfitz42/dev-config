@@ -69,6 +69,7 @@ Not committed. Create any of these in `local/` (see `local/zshrc.local.example`)
 > **Gotchas**
 >
 > - `.zshenv` runs for every zsh, scripts included, so it stays tiny and has no output.
-> - Oh My Zsh's own updater is set to "reminder"; update with `scripts/dotfiles update`.
+> - Oh My Zsh's own updater is set to "reminder"; update it with `omz update`. The installer only
+>   clones it when missing: `scripts/dotfiles update` updates this repo, not Oh My Zsh.
 > - `~/.zshrc` is a symlink into the repo. Tools that append to it (Docker Desktop installers, for example)
 >   will write into the repo file; move such lines to `local/zshrc.local` instead.

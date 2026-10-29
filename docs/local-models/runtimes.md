@@ -9,7 +9,8 @@ project before relying on it. No performance claims here: measure on your own ta
 > **Beyond macOS**
 >
 > llama.cpp, Ollama and LM Studio run on Linux, Windows and macOS. MLX weights only run on Apple
-> silicon, so on other platforms the GGUF runtimes are the choice.
+> silicon, so on other platforms the GGUF runtimes are the choice. On the Windows PC this repo uses
+> Ollama on the Windows side, driven from WSL ([models](models.md#ollama-any-platform)).
 
 | Runtime | What it is | Format | Notes |
 |---|---|---|---|

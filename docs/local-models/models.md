@@ -1,7 +1,11 @@
 # Models
 
-The models installed on this Mac. They are MLX builds, so they only run on Apple silicon; on other
-platforms look for GGUF builds of the same families.
+The local models I use, in two runtimes. The lists the installer pulls live in `models.yaml`, so
+this page and that file should agree.
+
+## oMLX (Apple silicon)
+
+The models installed on the Mac. They are MLX builds, so they only run on Apple silicon.
 
 | Model | Original | On disk | Role today |
 |---|---|---|---|
@@ -14,8 +18,8 @@ Hardware is an M5 Pro with 64 GB ([basics](apple-silicon-basics.md)); the names 
 
 ## Ollama (any platform)
 
-The same models as Ollama library tags, 4-bit where there is a choice. Explicit quantisation tags
-were checked on ollama.com on 2026-10-29.
+The same models as Ollama library tags (GGUF), 4-bit where there is a choice. Explicit quantisation
+tags were checked on ollama.com on 2026-10-29.
 
 | Tag | Same model as | On disk |
 |---|---|---|
@@ -24,12 +28,14 @@ were checked on ollama.com on 2026-10-29.
 | [`gpt-oss:20b`](https://ollama.com/library/gpt-oss/tags) | `gpt-oss-20b-MXFP4-Q8` | 14 GB |
 
 A model larger than the GPU's memory still runs, but Ollama moves the layers that don't fit onto
-the CPU, which is much slower. Under WSL, these go to Ollama on Windows (see
-[getting started](../getting-started.md#the-wizard-)).
+the CPU, which is much slower. These sizes were chosen for the Mac's 64 GB of unified memory: on
+the Windows PC (RTX 2080 Ti, 11 GB), none of the three fits entirely on the GPU, `gpt-oss:20b`
+comes closest. Under WSL, models go to Ollama on Windows (see
+[getting started](../getting-started.md#local-models-and-extras)).
 
 ## Pulling them
 
-Both lists live in `models.yaml`:
+From the wizard (the spellbook's Models tab shows which are pulled), or:
 
 ```sh
 scripts/dotfiles models                      # every runtime found here

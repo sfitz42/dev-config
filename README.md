@@ -1,8 +1,8 @@
 # dev-config
 
-Dev setup in one repo: shell and app config, an idempotent installer, coding-agent setup
-(Claude Code and Pi, with plugins opt-in), dev containers, and notes on running local models.
-Built to be taken in pieces.
+Dev setup in one repo: shell and app config, an idempotent installer with an interactive wizard,
+coding-agent setup (Claude Code and Pi, with plugins opt-in), local models (oMLX and Ollama), dev
+containers, and notes on running models locally. Built to be taken in pieces.
 
 ```sh
 git clone <this repo> ~/.dev-config && cd ~/.dev-config
@@ -10,17 +10,47 @@ git clone <this repo> ~/.dev-config && cd ~/.dev-config
 ./scripts/bootstrap.sh                # Command Line Tools -> Homebrew -> uv -> the wizard
 ```
 
-After that, `scripts/dotfiles` (or `uv run conjure`) opens **conjure** 🪄, an interactive installer
-that detects the platform, lets you choose what to install and handles updates. Every step is
-also a plain command for scripts: `scripts/dotfiles install|update|doctor …`
-([getting started](docs/getting-started.md#the-wizard-)).
-
 Linux and WSL use the same two commands (dnf/apt instead of Homebrew; clone inside the distro). On
 Windows, `scripts\bootstrap.ps1` checks WSL and installs uv, and `devbox` runs on
 [WSL containers](docs/tools/wslc.md). See [getting started](docs/getting-started.md#windows-with-wsl).
 
-Existing files are backed up to `~/.config-backups/` before anything is replaced;
-`scripts/dotfiles uninstall` puts them back.
+## The wizard
+
+`scripts/dotfiles` with no command (or `uv run conjure`) opens **conjure** 🪄, a step-by-step
+installer in the terminal:
+
+1. It detects the platform: OS, distro, arch, package manager, container runtime, and Ollama
+   (on Windows, when you're in WSL).
+2. You choose a path: a *quick cast* with the recommended setup, or the *spellbook*, where you
+   tick packages, config, agents, models and extras one by one. Anything that doesn't apply to
+   this machine is greyed out with the reason.
+3. You review it, optionally as a rehearsal (dry run), then cast. Output streams live, prompts
+   appear as dialogs, and sudo asks for your password once.
+
+Run it again after an install and it offers to modify, update, mend (re-apply, then check), or
+uninstall. Updates show the incoming commits and the components they touch before
+fast-forwarding, then re-apply what you installed. It's animated; `--calm` (or `CONJURE_CALM=1`)
+turns that off. More in [getting started](docs/getting-started.md#the-wizard-).
+
+## Scripted
+
+Everything the wizard does is also a plain command, through `scripts/dotfiles` or `uv run dotfiles`:
+
+```sh
+scripts/dotfiles install --dry-run                 # everything, previewed
+scripts/dotfiles install --only zsh,git            # just some modules
+scripts/dotfiles update --check                    # commits behind (exit 1 if behind)
+scripts/dotfiles update                            # show changes, fast-forward, re-apply
+scripts/dotfiles models --runtime ollama           # pull the models in models.yaml
+scripts/dotfiles doctor                            # check links, packages, local/
+scripts/dotfiles uninstall                         # remove links, restore backups
+```
+
+Existing files are backed up to `~/.config-backups/` before anything is replaced; `uninstall`
+puts them back. What you installed, and from which commit, is recorded in
+`~/.local/state/dotfiles/install.json`, so `update` re-applies the same selection.
+
+## What's here
 
 | | |
 |---|---|
@@ -29,6 +59,10 @@ Existing files are backed up to `~/.config-backups/` before anything is replaced
 | `pi-extensions/` | Pi extensions audited and reimplemented here instead of installed from npm ([how](pi-extensions/README.md)) |
 | `devcontainers/` | dev container images and the `devbox` launcher (Apple `container` or WSL `wslc`) |
 | `packages.yaml` | every tool, with ordered install sources (brew, DMG, pkg, dnf/apt, script) |
+| `links.yaml` | which config files are linked where, one module per app |
+| `models.yaml` | local models to pull, per runtime (oMLX on Apple silicon, Ollama anywhere) |
+| `src/dotfiles/` | the installer (Python, run through uv) and the wizard (`wizard/`, Textual) |
+| `scripts/` | `bootstrap.sh`/`.ps1` for a fresh machine, and `dotfiles`, the entry point |
 | `local/` | git-ignored overrides for hosts, keys, proxies and certificates |
 | `docs/` | how I use it all, including [local models](docs/local-models/apple-silicon-basics.md) and my dated [model assessments](docs/local-models/models.md) |
 
@@ -54,9 +88,11 @@ link to the page that covers them.
 | | WSL containers (`wslc`, Windows) | [wslc](docs/tools/wslc.md) |
 | | devbox, tinyproxy | [devbox](docs/tools/devbox.md), [proxy notes](devcontainers/README.md#proxy) |
 | | Docker Desktop | [Apple container](docs/tools/apple-container.md) |
-| Local models | oMLX | [oMLX](docs/local-models/omlx.md), [models](docs/local-models/models.md) |
+| Local models | oMLX (Apple silicon) | [oMLX](docs/local-models/omlx.md), [models](docs/local-models/models.md) |
+| | Ollama (optional; under WSL, the Windows install is used) | [models](docs/local-models/models.md#ollama-any-platform), [WSL note](docs/getting-started.md#local-models-and-extras) |
 | Coding agents | Claude Code | [Claude Code](docs/agents/claude-code.md) |
 | | Pi | [Pi](docs/agents/pi.md) |
 
-Start with [docs/getting-started.md](docs/getting-started.md). Take just one piece with, for
-example, `scripts/dotfiles link --only zsh`, or copy a file out of `config/`.
+Start with [docs/getting-started.md](docs/getting-started.md). Take just one piece with the
+wizard's spellbook, with `scripts/dotfiles link --only zsh`, or by copying a file out of
+`config/`.

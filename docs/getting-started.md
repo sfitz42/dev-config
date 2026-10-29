@@ -9,14 +9,15 @@ but untested.
 > On Linux, packages come from dnf or apt (the distro's own versions), or from the vendor script
 > where a tool isn't packaged (starship, mise, claude, pi). Mac apps (Ghostty, Zed, Docker
 > Desktop, oMLX, Apple `container`, the Nerd Font) and the `ghostty`/`zed` link modules are skipped
-> and shown as "not for linux". Under WSL those apps belong on the Windows side.
+> and shown as "not for linux". Under WSL those apps belong on the Windows side, and so does
+> Ollama (see [local models](#local-models-and-extras)).
 
 ## Fresh Mac
 
 ```sh
 git clone <this repo> ~/.dev-config && cd ~/.dev-config
 ./scripts/bootstrap.sh --dry-run     # see everything it would do
-./scripts/bootstrap.sh               # Command Line Tools -> Homebrew -> uv -> install
+./scripts/bootstrap.sh               # Command Line Tools -> Homebrew -> uv -> the wizard
 ```
 
 `bootstrap.sh` runs before Python exists, so it stays bash. Once `uv` exists, everything else is
@@ -35,8 +36,9 @@ uv run conjure              # the same, through uv
 step and where you are. Every page has **← Back**, **Next →** and **Cancel**, and nothing changes
 until you cast.
 
-1. **Welcome**: the machine it found (OS, distro, arch, package manager, container runtime), the
-   last install and whether updates are waiting.
+1. **Welcome**: the machine it found (OS, distro, arch, package manager, container runtime,
+   Ollama and its version), how many listed models are pulled, the last install and whether
+   updates are waiting.
 2. **Choose a path** (first run): *Quick cast*, the recommended setup for this machine, or *Open
    the spellbook* to choose everything yourself. If you've installed before, you get **The
    Grimoire** instead, with four options:
@@ -45,8 +47,8 @@ until you cast.
    - *Mend*: re-apply what you installed, then run `doctor`
    - *Banish*: remove the links and restore your backups
 3. **Spellbook** and **Enchantments** (if you're choosing yourself):
-   - **Spellbook**: tick packages, config modules, agents and extras. Anything that doesn't apply
-     to this machine is greyed out with the reason, so you can't select it.
+   - **Spellbook**: tick packages, config modules, agents, models and extras. Anything that
+     doesn't apply to this machine is greyed out with the reason, so you can't select it.
    - **Enchantments**: set sudo, unpinned vendor scripts, optional packages and source
      preference.
 4. **Scrying** (update): the incoming commits, the changed files and which components they touch.
@@ -62,6 +64,8 @@ and so on), and a burst, a puff of smoke or a dissolve at the end. `--calm` (or 
 or `TERM=dumb`) turns all of it off.
 
 Everything the wizard does can also be scripted with the commands below.
+
+## Local models and extras
 
 **Models** have their own tab in the wizard's spellbook. Each model in `models.yaml` is listed with
 its size and whether it's already pulled ([models](local-models/models.md)):
@@ -94,7 +98,7 @@ installs uv with winget (for `devbox.ps1`) and lists your distros. Then, **insid
 
 ```sh
 git clone <this repo> ~/.dev-config && cd ~/.dev-config     # the Linux filesystem, not /mnt/c
-./scripts/bootstrap.sh --dry-run     # git, curl, zsh via dnf/apt (sudo) -> uv -> install
+./scripts/bootstrap.sh --dry-run     # git, curl, zsh via dnf/apt (sudo) -> uv -> the wizard
 ./scripts/bootstrap.sh
 chsh -s "$(command -v zsh)"
 ```
@@ -152,7 +156,7 @@ Everything under `local/` is git-ignored except `README.md` and `*.example` temp
 | You want to | Put it in |
 |---|---|
 | Real ssh hosts | `local/ssh.d/<name>` (linked into `~/.ssh/config.d/`) |
-| Shell tweaks for this Mac | `local/zshrc.local`, `zshenv.local`, `zprofile.local` |
+| Shell tweaks for this machine | `local/zshrc.local`, `zshenv.local`, `zprofile.local` |
 | A corporate CA for container builds | `local/certificates/*.crt` |
 | A proxy for container builds | `local/proxy/tinyproxy.conf` |
 | API keys used by agent config | `local/agents.env` |
@@ -171,8 +175,10 @@ uv run pytest                    # the installer's tests
 Every install records what was selected and the commit it came from in
 `~/.local/state/dotfiles/install.json`. `update` fetches first and lists the incoming commits, the
 changed files and the modules they touch. After you confirm, it fast-forwards and re-applies that
-saved selection; `--only` or `--skip` overrides it for one run. Extras re-run only when their
-inputs changed: devbox images when `devcontainers/` changes, models when the installer does.
+saved selection; `--only` or `--skip` overrides it for one run. The models you ticked are checked
+each time (cheap when they're already pulled). The slow extras re-run only when their inputs
+changed: devbox images when `devcontainers/` changes, and the `models` extras when `models.yaml`
+or the installer does.
 `update` refuses to pull over local edits to tracked files or a branch that has diverged. If the
 pull changes the installer itself, it restarts on the new code before re-applying.
 

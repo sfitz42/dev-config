@@ -10,6 +10,8 @@
 >
 > Pi and its config are platform-neutral. The local provider in `models.json` points at oMLX, which is
 > macOS-only; on another platform point `baseUrl` at whatever OpenAI-compatible server you run.
+> Ollama serves one at `http://localhost:11434/v1` (reachable from WSL with mirrored networking),
+> but the template has no Ollama provider yet, so that is a manual edit for now.
 
 Pi is a small terminal coding agent (read, write, edit, bash tools). It talks to any
 OpenAI-compatible endpoint, which makes it the natural front end for a local model.

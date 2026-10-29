@@ -7,7 +7,7 @@ export ZSH="${ZSH:-$HOME/.oh-my-zsh}"
 export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump-${ZSH_VERSION}"
 mkdir -p "${ZSH_COMPDUMP:h}"
 ZSH_THEME=""
-zstyle ':omz:update' mode reminder     # updates are driven by scripts/update.sh, not on shell start
+zstyle ':omz:update' mode reminder     # update by hand with `omz update`, not on shell start
 
 # WSL with the repo on the Windows drive: drvfs reports everything as world-writable, so compinit
 # would stop every shell at an "insecure directories" prompt. Clone into the distro to avoid this.

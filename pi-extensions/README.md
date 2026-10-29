@@ -27,6 +27,10 @@ pi -e ./packages/<name>          # try one package in Pi without installing it
 
 Pi loads the TypeScript directly (jiti), so there is no build step.
 
+The packages listed in `agents/pi/agent.yaml` are installed by `scripts/dotfiles agents --only pi`
+(also part of a normal install). `./install.sh [-l] [package...]` installs them by hand,
+globally or with `-l` into the current project.
+
 ## Conventions
 
 - **Style:** [AICE JavaScript style guide](https://github.com/DEFRA/aice-team) for formatting

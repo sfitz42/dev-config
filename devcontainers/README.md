@@ -46,6 +46,10 @@ Project-blind dev images for [Apple `container`](https://github.com/apple/contai
 ./build.sh core --no-cache # extra args are passed to `container build` / `wslc build`
 ```
 
+The installer can build them too: tick the devbox images under Extras in the wizard, or run
+`scripts/dotfiles install --extras devbox:all`. `update` rebuilds them when `devcontainers/`
+changes.
+
 Tags default to `dev-core:0.1.0` and `dev-fullstack:0.1.0` (override with `CORE_TAG`,
 `FULLSTACK_TAG`). Version pins are build args on the Dockerfiles:
 
