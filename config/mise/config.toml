@@ -1,4 +1,4 @@
 # Global mise config: language runtimes available everywhere. Per-project versions go in each
 # project's own mise.toml / .tool-versions / .nvmrc, which override these.
 [tools]
-node = "24.22.1"
+node = "lts"

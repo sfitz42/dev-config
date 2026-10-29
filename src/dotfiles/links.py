@@ -19,10 +19,12 @@ def load_modules(root: pathlib.Path = core.REPO_ROOT) -> dict[str, list[dict[str
     return modules
 
 
-def module_supported(name: str, root: pathlib.Path = core.REPO_ROOT) -> bool:
+def module_supported(
+    name: str, root: pathlib.Path = core.REPO_ROOT, current: str | None = None
+) -> bool:
     """False for modules that `module_os` in links.yaml limits to other OSes."""
     limits = yaml.safe_load((root / "links.yaml").read_text()).get("module_os") or {}
-    return platform.supported({"os": limits.get(name)})
+    return platform.supported({"os": limits.get(name)}, current)
 
 
 Action = tuple[str, pathlib.Path, pathlib.Path | None]

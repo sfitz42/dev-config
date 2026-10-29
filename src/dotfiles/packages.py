@@ -292,7 +292,10 @@ def install_package(
 ) -> str:
     """Returns: present | installed | manual | failed | skipped | unsupported."""
     if not platform.supported(pkg):
-        core.info(f"- {name} (not for {platform.os_name()})")
+        if platform.supported(pkg, wsl=False):  # ruled out only because this is WSL
+            core.info(f"- {name} (not under WSL: {pkg.get('wsl_note', 'skipped')})")
+        else:
+            core.info(f"- {name} (not for {platform.os_name()})")
         return "unsupported"
     if is_installed(pkg["check"]):
         core.info(f"= {name} (present)")

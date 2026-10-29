@@ -1,0 +1,29 @@
+# models.yaml: local models to pull, per runtime. Pull them with `scripts/dotfiles models`
+# (all runtimes found on this machine, or `--runtime omlx|ollama`) or tick them in the wizard.
+#
+#   omlx:    MLX builds from Hugging Face, downloaded into oMLX's model directory
+#            ($OMLX_MODEL_DIR, default ~/.omlx/models). Apple silicon only.
+#   ollama:  Ollama library tags, pulled with `ollama pull`. Under WSL they go to Ollama on Windows
+#            (ollama.exe): it uses the GPU through the Windows driver, without depending on WSL's
+#            GPU passthrough, and there is one model store and one server on port 11434. A Linux
+#            ollama inside WSL is not used.
+#
+# The two lists are the same models in each runtime's format, 4-bit where there is a choice.
+# Explicit quantisation tags, so `latest` moving doesn't change what is pulled. Tags checked
+# against ollama.com/library on 2026-10-29. See docs/local-models/models.md.
+# `size` is shown in the wizard; it's what the download is, roughly.
+
+omlx:
+  org: mlx-community
+  # exact pin of the downloader; the exclude-newer window also holds back its dependencies
+  hf_version: "2.2.0"
+  models:
+    - {name: Qwen3.6-35B-A3B-4bit, size: 19 GB}
+    - {name: Qwen3.8-27B-4bit, size: 15 GB}
+    - {name: gpt-oss-20b-MXFP4-Q8, size: 11 GB}
+
+ollama:
+  models:
+    - {name: "qwen3.6:35b-a3b-q4_K_M", size: 24 GB}
+    - {name: "qwen3.8:27b-q4_K_M", size: 18 GB}
+    - {name: "gpt-oss:20b", size: 14 GB}     # MXFP4, as published

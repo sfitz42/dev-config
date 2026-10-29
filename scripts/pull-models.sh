@@ -1,36 +1,9 @@
 #!/usr/bin/env bash
-# Download the local MLX models listed in docs/local-models/models.md into oMLX's model directory.
-#
-# Usage: ./pull-models.sh [model...]
-#   ./pull-models.sh                          # every model below
-#   ./pull-models.sh Qwen3.8-27B-4bit         # only this one (name without the org)
-#
-# Downloads resume and skip files already present, so re-running is safe.
+# Pull the local models in models.yaml (oMLX on Apple silicon, Ollama anywhere; under WSL, Ollama
+# on Windows). Now part of the Python installer; same usage as before:
+#   ./pull-models.sh                          # every model, every runtime found here
+#   ./pull-models.sh Qwen3.8-27B-4bit         # only this one
+# For one runtime: scripts/dotfiles models --runtime ollama
 set -euo pipefail
-
-models=(
-  Qwen3.6-35B-A3B-4bit
-  Qwen3.8-27B-4bit
-  gpt-oss-20b-MXFP4-Q8
-)
-
-org="mlx-community"
-# Exact pin (AICE style guide 1.4); the exclude-newer window also holds back transitive dependencies.
-hf_version="2.2.0"
-exclude_newer="1 week"
-model_dir="${OMLX_MODEL_DIR:-$HOME/.omlx/models}"
-
-command -v uvx >/dev/null || { echo "uvx not found on PATH (install uv)" >&2; exit 1; }
-
-if [[ $# -gt 0 ]]; then
-  selected=("$@")
-else
-  selected=("${models[@]}")
-fi
-
-for name in "${selected[@]}"; do
-  echo "Pulling $org/$name"
-  uvx --exclude-newer "$exclude_newer" --from "huggingface_hub==$hf_version" hf download "$org/$name" --local-dir "$model_dir/$org/$name"
-done
-
-echo "Done. Restart the server to pick up new models: omlx restart"
+models="$(IFS=,; echo "$*")"
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dotfiles" models ${models:+"$models"}

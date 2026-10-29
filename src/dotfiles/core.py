@@ -5,13 +5,16 @@ Every state-changing action goes through here so --dry-run is honoured everywher
 
 from __future__ import annotations
 
+import codecs
 import dataclasses
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from typing import Any
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -37,24 +40,46 @@ def _c(code: str, text: str) -> str:
     return f"\033[{code}m{text}\033[0m" if _COLOR else text
 
 
+def print_sink(level: str, msg: str) -> None:
+    """Default output: the terminal. Levels: info, ok, warn, err, step, dry, out, progress."""
+    if level == "progress":
+        return  # live redraws; the final state of each bar arrives as "out"
+    if level == "ok":
+        print(f"{_c('32', '✓')} {msg}")
+    elif level == "warn":
+        print(f"{_c('33', '!')} {msg}", file=sys.stderr)
+    elif level == "err":
+        print(f"{_c('31', '✗')} {msg}", file=sys.stderr)
+    elif level == "step":
+        print(f"\n{_c('2', '==>')} {msg}")
+    elif level == "dry":
+        print(f"{_c('2', '[dry-run]')} {msg}")
+    else:
+        print(msg)
+
+
+# Where all output goes; the wizard swaps this for its log pane
+SINK: Callable[[str, str], None] = print_sink
+
+
 def info(msg: str = "") -> None:
-    print(msg)
+    SINK("info", msg)
 
 
 def ok(msg: str) -> None:
-    print(f"{_c('32', '✓')} {msg}")
+    SINK("ok", msg)
 
 
 def warn(msg: str) -> None:
-    print(f"{_c('33', '!')} {msg}", file=sys.stderr)
+    SINK("warn", msg)
 
 
 def err(msg: str) -> None:
-    print(f"{_c('31', '✗')} {msg}", file=sys.stderr)
+    SINK("err", msg)
 
 
 def step(msg: str) -> None:
-    print(f"\n{_c('2', '==>')} {msg}")
+    SINK("step", msg)
 
 
 @dataclasses.dataclass
@@ -70,17 +95,22 @@ class Ctx:
     backed_up: int = 0
     # per-run one-off steps (sudo approval, apt update)
     once: dict[str, bool] = dataclasses.field(default_factory=dict)
+    # set by the wizard: answer prompts in a dialog, and pipe command output into the sink
+    ask: Callable[[str], bool] | None = None
+    stream: bool = False
 
     @property
     def backup_dir(self) -> pathlib.Path:
         return self.backup_root / self.stamp
 
     def say(self, msg: str) -> None:
-        print(f"{_c('2', '[dry-run]')} {msg}" if self.dry_run else msg)
+        SINK("dry" if self.dry_run else "info", msg)
 
     def confirm(self, question: str) -> bool:
         if self.yes:
             return True
+        if self.ask is not None:
+            return self.ask(question)
         if not sys.stdin.isatty():
             return False
         return input(f"{question} [y/N] ").strip().lower() in ("y", "yes")
@@ -92,7 +122,9 @@ class Ctx:
         if self.dry_run:
             self.say(" ".join(str(c) for c in cmd))
             return None
-        return subprocess.run(cmd, check=check, **kw)
+        if not self.stream:
+            return subprocess.run(cmd, check=check, **kw)
+        return _run_streamed(cmd, check=check, **kw)
 
     def summary(self) -> None:
         info(f"\nlinked: {self.linked}, unchanged: {self.unchanged}, backed up: {self.backed_up}")
@@ -100,6 +132,95 @@ class Ctx:
             info(f"backups: {self.backup_dir}")
         if self.dry_run:
             info("(dry run: nothing was changed)")
+
+
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+# a redraw: back to the start of the line (\r, or "cursor to column N" as ollama does)
+_REDRAW = re.compile(r"\r|\x1b\[\d*G")
+# progress output: a percentage, or a braille spinner at the end ("pulling manifest ⠋")
+_PROGRESS = re.compile(r"^(.*?)\s*(?:\d{1,3}%.*|[⠀-⣿])$")
+
+
+def _progress_key(line: str) -> str | None:
+    """What a progress line is about ("pulling 8a43277aac50:"), or None for other output."""
+    m = _PROGRESS.match(line)
+    return m.group(1).strip() if m else None
+
+
+class _Stream:
+    """Turns a command's raw output into sink calls.
+
+    Programs that draw progress bars redraw lines in place, with \\r or escape codes and no
+    newline, sometimes several bars at once. Without a terminal that would arrive as one endless
+    line (shown only when the command ends) or as thousands of copies. Here every redraw goes to
+    the sink as "progress", which the wizard shows on one live line, and each bar's final state
+    goes to "out" once, when the command finishes."""
+
+    def __init__(self) -> None:
+        self.bars: dict[str, str] = {}  # progress key -> latest text, in first-seen order
+        self.said: set[str] = set()  # lines already sent; redraws repeat them
+        self.last_progress = 0.0
+
+    def segment(self, text: str, final: bool) -> None:
+        line = _ANSI.sub("", text).strip()
+        if not line:
+            return
+        key = _progress_key(line)
+        if key is not None:
+            if line in self.said:  # a finished bar, redrawn along with the others
+                return
+            self.bars[key] = line
+            now = time.monotonic()
+            if now - self.last_progress > 0.15:
+                SINK("progress", line)
+                self.last_progress = now
+            return
+        if not final or line in self.said:
+            return
+        self.bars.pop(line, None)  # "pulling manifest" done: drop its spinner
+        self.flush()  # a new line means the bars before it are finished
+        self.said.add(line)
+        SINK("out", line)
+
+    def flush(self) -> None:
+        for line in self.bars.values():
+            self.said.add(line)
+            SINK("out", line)
+        self.bars.clear()
+
+    def feed(self, buf: str) -> str:
+        """Handle every complete line in buf; return the unfinished rest."""
+        while "\n" in buf:
+            line, buf = buf.split("\n", 1)
+            parts = _REDRAW.split(line)
+            for part in parts[:-1]:
+                self.segment(part, final=False)
+            self.segment(parts[-1], final=True)
+        parts = _REDRAW.split(buf)
+        for part in parts[:-1]:  # redrawn already: only ever progress
+            self.segment(part, final=False)
+        return parts[-1]
+
+    def close(self, rest: str) -> None:
+        self.segment(rest, final=True)
+        self.flush()
+
+
+def _run_streamed(cmd: list[str], *, check: bool, **kw: Any) -> subprocess.CompletedProcess[Any]:
+    """Run without a terminal: stdin closed, stdout and stderr sent to the sink as they arrive."""
+    proc = subprocess.Popen(
+        cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kw
+    )
+    assert proc.stdout is not None
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    stream, buf, fd = _Stream(), "", proc.stdout.fileno()
+    while chunk := os.read(fd, 65536):  # whatever has arrived; no waiting for a newline
+        buf = stream.feed(buf + decoder.decode(chunk))
+    stream.close(buf + decoder.decode(b"", final=True))
+    code = proc.wait()
+    if check and code:
+        raise subprocess.CalledProcessError(code, cmd)
+    return subprocess.CompletedProcess(cmd, code)
 
 
 def backup_path(ctx: Ctx, path: pathlib.Path) -> pathlib.Path:

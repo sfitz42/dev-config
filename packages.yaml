@@ -138,6 +138,16 @@ packages:
         team_id: PSK5Q5T46L
         app: oMLX.app
       - {type: web, url: "https://github.com/jundot/omlx/releases"}
+  ollama:
+    optional: true                             # the GGUF runtime; models.yaml lists what to pull
+    wsl: false                                 # under WSL, Ollama runs on Windows so it gets the GPU
+    wsl_note: "install Ollama on Windows instead (winget install Ollama.Ollama)"
+    admin: true                                # the Linux script calls sudo itself
+    check: {cmd: ollama}
+    sources:
+      - {type: brew, name: ollama}
+      - {type: script, os: [linux], url: "https://ollama.com/install.sh", pinned: false}   # vendor installer
+      - {type: web, url: "https://ollama.com/download"}
   apple-container:
     os: [macos]
     admin: true

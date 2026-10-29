@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
+import sys
 from collections.abc import Callable
 
-from dotfiles import agents, core, links, packages, platform
+from dotfiles import agents, core, install, links, models, packages, platform, state, update
 
-LINK_MODULES = list(links.load_modules())
-ALL_MODULES = ["packages", "repos", *LINK_MODULES, "agents"]
+LINK_MODULES = install.LINK_MODULES
+ALL_MODULES = install.ALL_MODULES
 
 
 def _csv(value: str) -> list[str]:
@@ -44,22 +46,29 @@ def _opts(args: argparse.Namespace) -> packages.Opts:
     )
 
 
+def _extras(args: argparse.Namespace) -> list[str]:
+    chosen = _csv(getattr(args, "extras", "") or "")
+    unknown = [e for e in chosen if e not in install.EXTRAS]
+    if unknown:
+        core.err(f"unknown extra(s): {', '.join(unknown)}; available: {', '.join(install.EXTRAS)}")
+        raise SystemExit(2)
+    return chosen
+
+
+def _build(args: argparse.Namespace) -> install.Selection:
+    return install.Selection(
+        modules=_selection(args, ALL_MODULES), extras=_extras(args), opts=_opts(args)
+    )
+
+
+def _finish(ctx: core.Ctx, results: dict[str, bool]) -> int:
+    ctx.summary()
+    return 0 if all(results.values()) else 1
+
+
 def cmd_install(args: argparse.Namespace) -> int:
     ctx = core.Ctx(dry_run=args.dry_run, yes=args.yes)
-    mods = _selection(args, ALL_MODULES)
-    good = True
-    if "packages" in mods:
-        results = packages.install_all(ctx, _opts(args))
-        good &= "failed" not in results.values()
-    if "repos" in mods:
-        packages.install_repos(ctx, _opts(args))
-    link_mods = [m for m in mods if m in LINK_MODULES]
-    if link_mods:
-        good &= links.link_modules(ctx, link_mods)
-    if "agents" in mods:
-        good &= agents.sync(ctx, opts=_opts(args))
-    ctx.summary()
-    return 0 if good else 1
+    return _finish(ctx, install.run(ctx, _build(args)))
 
 
 def cmd_link(args: argparse.Namespace) -> int:
@@ -92,12 +101,51 @@ def cmd_agents(args: argparse.Namespace) -> int:
 
 def cmd_update(args: argparse.Namespace) -> int:
     ctx = core.Ctx(dry_run=args.dry_run, yes=args.yes)
-    core.step("update repo")
-    if (core.REPO_ROOT / ".git").exists():
-        ctx.run(["git", "-C", str(core.REPO_ROOT), "pull", "--ff-only"], check=False)
-    else:
+    touched = _csv(args.touched or "")
+    if args.no_pull:
+        pass  # re-exec'd after a pull that changed the installer
+    elif not update.is_checkout():
         core.warn("not a git checkout; skipping pull")
-    return cmd_install(args)
+    else:
+        core.step("update repo")
+        if not update.fetch():
+            core.warn("git fetch failed; using what is already fetched")
+        inc = update.incoming()
+        if args.check:
+            update.report(inc)
+            return 1 if inc.behind else 0
+        update.report(inc)
+        touched = update.affected([p for _, p in inc.files])
+        if inc.behind:
+            if not ctx.confirm(f"fast-forward {inc.behind} commit(s)?"):
+                core.warn("update cancelled")
+                return 1
+            if not update.fast_forward(ctx, inc):
+                return 1
+            if "installer" in touched and not ctx.dry_run:
+                core.info("the installer changed: restarting it to re-apply")
+                script = str(core.REPO_ROOT / "scripts" / "dotfiles")
+                again = [*args.argv, "--no-pull", "--touched", ",".join(touched)]
+                os.execv(script, [script, *again])
+    saved = state.load()
+    if args.only or args.skip or args.extras or not saved:
+        sel, record = _build(args), not (args.only or args.skip or args.extras)
+    else:
+        sel, record = install.Selection.from_dict(saved["selection"]), True
+        core.info(f"re-applying the saved selection from {saved.get('updated_at', '?')}")
+        sel.extras = update.extras_to_rerun(sel.extras, touched)
+    return _finish(ctx, install.run(ctx, sel, record=record))
+
+
+def cmd_models(args: argparse.Namespace) -> int:
+    ctx = core.Ctx(dry_run=args.dry_run, yes=args.yes)
+    return 0 if models.pull(ctx, args.runtime, _csv(args.models or "")) else 1
+
+
+def cmd_conjure(args: argparse.Namespace) -> int:
+    from dotfiles.wizard import app  # textual is only imported for the wizard
+
+    return app.run_wizard(args.reapply, _csv(args.touched or ""), args.calm)
 
 
 def cmd_uninstall(args: argparse.Namespace) -> int:
@@ -114,9 +162,9 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
 def cmd_doctor(args: argparse.Namespace) -> int:
     problems = 0
     core.step("links")
-    for module, dst, state in links.link_status():
-        (core.ok if state == "ok" else core.warn)(f"{module:<9} {dst}: {state}")
-        problems += state != "ok"
+    for module, dst, status in links.link_status():
+        (core.ok if status == "ok" else core.warn)(f"{module:<9} {dst}: {status}")
+        problems += status != "ok"
     core.step("packages")
     for name, present, optional in packages.check_all():
         if present:
@@ -151,8 +199,12 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="dotfiles", description="Install and manage dev-config")
-    sub = p.add_subparsers(dest="command", required=True)
+    p = argparse.ArgumentParser(
+        prog="dotfiles",
+        description="Install and manage dev-config. With no command on a terminal, opens the "
+        "conjure wizard.",
+    )
+    sub = p.add_subparsers(dest="command")
 
     def add(
         name: str,
@@ -175,8 +227,22 @@ def build_parser() -> argparse.ArgumentParser:
         sp.set_defaults(fn=fn)
         return sp
 
-    add("install", cmd_install, "install packages and link config", True, True)
-    add("update", cmd_update, "git pull, then install", True, True)
+    extras_help = f"comma-separated extras: {', '.join(install.EXTRAS)}"
+    sp = add("install", cmd_install, "install packages and link config", True, True)
+    sp.add_argument("--extras", help=extras_help)
+    sp = add(
+        "update",
+        cmd_update,
+        "show incoming changes, fast-forward, then re-apply what was installed",
+        True,
+        True,
+    )
+    sp.add_argument("--extras", help=extras_help)
+    sp.add_argument(
+        "--check", action="store_true", help="report commits behind only (exit 1 if behind)"
+    )
+    sp.add_argument("--no-pull", action="store_true", help=argparse.SUPPRESS)
+    sp.add_argument("--touched", help=argparse.SUPPRESS)
     sp = add("link", cmd_link, "link config only", True)
     sp = add("packages", cmd_packages, "install or check packages", False, True)
     sp.add_argument("packages", nargs="?", help="comma-separated package names (default: all)")
@@ -190,10 +256,35 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add("uninstall", cmd_uninstall, "remove links, restore backups")
     add("doctor", cmd_doctor, "verify links, packages and local overrides")
+    sp = add("models", cmd_models, "pull the local models in models.yaml (oMLX and/or Ollama)")
+    sp.add_argument("models", nargs="?", help="comma-separated model names (default: all)")
+    sp.add_argument(
+        "--runtime",
+        choices=models.RUNTIMES,
+        help="only this runtime (default: every one found here; under WSL, Ollama on Windows)",
+    )
+    sp = sub.add_parser("conjure", help="open the interactive installer (the default on a TTY)")
+    sp.add_argument("--reapply", action="store_true", help=argparse.SUPPRESS)
+    sp.add_argument("--touched", help=argparse.SUPPRESS)
+    sp.add_argument("--calm", action="store_true", help="no animation (also CONJURE_CALM=1)")
+    sp.set_defaults(fn=cmd_conjure)
     return p
 
 
+def interactive() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    argv = list(sys.argv[1:] if argv is None else argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command is None:
+        if not interactive():
+            parser.print_usage(sys.stderr)
+            core.err("no command given (the wizard needs a terminal)")
+            return 2
+        args = parser.parse_args(["conjure"])
+    args.argv = argv
     code: int = args.fn(args)
     return code
