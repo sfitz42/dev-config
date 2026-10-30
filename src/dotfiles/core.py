@@ -97,6 +97,7 @@ class Ctx:
     once: dict[str, bool] = dataclasses.field(default_factory=dict)
     # set by the wizard: answer prompts in a dialog, and pipe command output into the sink
     ask: Callable[[str], bool] | None = None
+    ask_text: Callable[[str, str], str | None] | None = None  # (question, default) -> answer
     stream: bool = False
 
     @property
@@ -114,6 +115,17 @@ class Ctx:
         if not sys.stdin.isatty():
             return False
         return input(f"{question} [y/N] ").strip().lower() in ("y", "yes")
+
+    def prompt(self, question: str, default: str = "") -> str:
+        """Free text from the user, or "" when we can't ask (--yes, no terminal, cancelled)."""
+        if self.yes:
+            return ""
+        if self.ask_text is not None:
+            return (self.ask_text(question, default) or "").strip()
+        if not sys.stdin.isatty():
+            return ""
+        suffix = f" [{default}]" if default else ""
+        return (input(f"{question}{suffix}: ").strip()) or default
 
     def run(
         self, cmd: list[str], *, check: bool = True, **kw: Any

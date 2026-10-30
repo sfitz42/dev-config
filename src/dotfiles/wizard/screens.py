@@ -129,6 +129,34 @@ class ConfirmModal(ModalScreen[bool]):
         self.dismiss(value)
 
 
+class TextModal(ModalScreen[str]):
+    BINDINGS = [("escape", "cancel", "Skip")]
+
+    def __init__(self, question: str, default: str = "") -> None:
+        super().__init__()
+        self.question, self.default = question, default
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static(escape(self.question.strip()))
+            yield Input(self.default, id="answer")
+            with Horizontal():
+                yield Button("Skip", id="skip")
+                yield Button("OK", id="ok", variant="primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#answer", Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.dismiss(event.value)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(self.query_one("#answer", Input).value if event.button.id == "ok" else "")
+
+    def action_cancel(self) -> None:
+        self.dismiss("")
+
+
 # ---- the page frame -------------------------------------------------------------------------
 
 
@@ -968,6 +996,7 @@ class InstallingPage(Page):
             scene.update(anim.block(lines))
             self.query_one("#quip", Static).update("")
             return
+        frame //= 2  # the working scene runs at half speed; the finale above keeps full speed
         spin = theme.SPINNER[frame % len(theme.SPINNER)]
         status = Text.assemble(
             (f"{spin} ", theme.GOLD), (f"{self.verb}: {self._current}…", "#ece6ff")
@@ -997,12 +1026,30 @@ class InstallingPage(Page):
         done.wait()
         return answer["v"]
 
+    def _ask_text(self, question: str, default: str) -> str | None:
+        answer: dict[str, str | None] = {}
+        done = threading.Event()
+
+        def got(value: str | None) -> None:
+            answer["v"] = value
+            done.set()
+
+        self.app.call_from_thread(self.app.push_screen, TextModal(question, default), got)
+        done.wait()
+        return answer["v"]
+
     @work(thread=True, exclusive=True)
     def install_job(self, sudo_approved: bool) -> None:
         settings = self.session.settings
         previous = core.SINK
         core.SINK = self._sink
-        ctx = core.Ctx(dry_run=settings.dry_run, yes=settings.yes, ask=self._ask, stream=True)
+        ctx = core.Ctx(
+            dry_run=settings.dry_run,
+            yes=settings.yes,
+            ask=self._ask,
+            ask_text=self._ask_text,
+            stream=True,
+        )
         ctx.once["sudo"] = sudo_approved or settings.dry_run
         try:
             results = self.job(ctx)

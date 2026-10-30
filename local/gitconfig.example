@@ -1,4 +1,5 @@
-# Copy the [user] block into ~/.gitconfig (not managed by this repo).
+# `scripts/dotfiles install` and the Setup Wizard detect your git name and email and ask for
+# whichever is missing, writing them to ~/.gitconfig. To set them by hand, use this block.
 [user]
 	name = <YOUR_NAME>
 	email = <ID+USERNAME@users.noreply.github.com>

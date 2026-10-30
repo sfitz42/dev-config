@@ -7,7 +7,7 @@ import pathlib
 import sys
 from typing import Any
 
-from dotfiles import agents, core, links, models, packages, state
+from dotfiles import agents, core, identity, links, models, packages, state
 
 LINK_MODULES = list(links.load_modules())
 ALL_MODULES = ["packages", "repos", *LINK_MODULES, "agents"]
@@ -81,6 +81,8 @@ def run(
     link_mods = [m for m in sel.modules if m in LINK_MODULES]
     if link_mods:
         results["links"] = links.link_modules(ctx, link_mods, root)
+        if "git" in link_mods:
+            results["git identity"] = identity.ensure(ctx)
     if "agents" in sel.modules:
         results["agents"] = agents.sync(ctx, sel.agents, root, opts=sel.opts)
     for runtime, names in sel.models_by_runtime().items():

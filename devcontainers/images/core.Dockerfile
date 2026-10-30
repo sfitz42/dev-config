@@ -24,7 +24,6 @@ ARG LOCALE=en_GB.UTF-8
 LABEL org.opencontainers.image.title="dev-core" \
       org.opencontainers.image.description="Core dev image: Fedora, zsh (Oh My Zsh + Starship), git/ssh, Docker CLI" \
       org.opencontainers.image.version=$DEV_BASE_VERSION \
-      org.opencontainers.image.authors="Shaun Fitzsimmons" \
       dev-core.fedora-version=$FEDORA_VERSION
 
 # Child images use DEV_USER to build paths and switch back after `USER root`
