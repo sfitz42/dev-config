@@ -26,12 +26,9 @@ project before relying on it. No performance claims here: measure on your own ta
 - **Want the most from Apple silicon and a coding-agent workflow:** MLX through oMLX.
 - **Need a model that only exists as GGUF, or non-Mac portability:** llama.cpp.
 
-> [!NOTE]
-> **My take · reviewed 2026-10-16**
->
-> oMLX: it speaks the APIs the coding agents expect and caches long agent prompts on SSD.
-> *(Drafted from the config, not from me: confirm or rewrite.)* Which *model* I use for what is on the
-> [models page](models.md).
+> [!TIP]
+> On macOS with Apple silicon, oMLX is the recommended runtime: it speaks the APIs the coding agents
+> expect and caches long agent prompts on SSD.
 
 ## Interchange
 

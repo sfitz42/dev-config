@@ -26,11 +26,7 @@ parts (Homebrew paths, DMG installs, Apple `container`, MLX/oMLX) are named in e
 
 ## How to read the panels
 
-Opinions live inline next to the facts they are about, in GitHub alert panels:
-
-> [!NOTE]
-> **My take** · reviewed 2026-10-16: a personal assessment. It carries its own review date and goes
-> stale; trust the date.
+Advice and gotchas live inline next to the facts they are about, in GitHub alert panels:
 
 > [!TIP]
 > Practical advice that follows from the facts around it.
