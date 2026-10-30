@@ -10,8 +10,11 @@ settings:
 marketplaces:
   - {name: claude-plugins-official, source: anthropics/claude-plugins-official}
   - {name: defra-aice, source: DEFRA/aice-team, install_all: true}   # aice-python, aice-javascript, aice-github-actions
+  - {name: defra-ai-plugins, source: DEFRA/defra-ai-plugins}         # opt-in per plugin, below
 
-plugins: []           # explicit opt-ins, as plugin@marketplace, e.g. code-review@claude-plugins-official
+plugins:              # explicit opt-ins, as plugin@marketplace, e.g. code-review@claude-plugins-official
+  - ticket-writer@defra-ai-plugins
+  - defra-shared@defra-ai-plugins
 
 # links:              # add skills/commands/instructions when you have some, e.g.
 #   - {src: agents/claude/CLAUDE.md, dst: ~/.claude/CLAUDE.md}

@@ -1,6 +1,6 @@
 # Claude Code
 
-**Last reviewed: 2026-10-16.** Manifest: `agents/claude/agent.yaml`. Sync with
+**Last reviewed: 2026-10-30.** Manifest: `agents/claude/agent.yaml`. Sync with
 `scripts/dotfiles agents --only claude`.
 
 **Platform:** any Unix (macOS and Linux).
@@ -17,9 +17,20 @@
 |---|---|
 | The CLI | `packages.yaml` → vendor install script (unpinned; the vendor URL moves) |
 | Settings | `agents/claude/settings.json` is **merged** into `~/.claude/settings.json`: only `model` and `theme` are managed; every other key is left alone. A snapshot goes to `~/.config-backups/` before any change |
-| Marketplaces | `claude-plugins-official` and `defra-aice` (`DEFRA/aice-team`) |
+| Marketplaces | `claude-plugins-official`, `defra-aice` (`DEFRA/aice-team`) and `defra-ai-plugins` (`DEFRA/defra-ai-plugins`) |
 | Plugins | Opt-in (see below) |
-| Skills, commands, `CLAUDE.md` | Supported via `links:` in the manifest; none are tracked yet |
+| Skills, commands, `CLAUDE.md` | Supported via `links:` in the manifest; none are tracked yet (my personal skills stay untracked until they have a git remote) |
+
+## Install on a new machine
+
+In the wizard, tick **🤖 Agents → claude** (on by default), or run it directly:
+
+```sh
+scripts/dotfiles agents --only claude --dry-run   # preview
+scripts/dotfiles agents --only claude             # install CLI, settings, marketplaces, plugins
+```
+
+Then restart Claude Code and sign in; auth is never touched.
 
 Never touched: login/auth, history, sessions, caches, and the organisation-managed
 `/Library/Application Support/ClaudeCode/managed-settings.json`.
@@ -36,8 +47,17 @@ Adding a marketplace only makes its plugins *available*. A plugin is installed w
 | `aice-javascript` | JavaScript style, testing, design-language and review standards |
 | `aice-github-actions` | GitHub Actions style guide |
 
-Because of `install_all`, plugins the AICE team adds later are installed on the next sync. To opt in to a
-single plugin from another marketplace, add it to `plugins:`:
+Because of `install_all`, plugins the AICE team adds later are installed on the next sync.
+
+`defra-ai-plugins` is added as a marketplace only; these are the plugins I opt in to under `plugins:`:
+
+| Plugin (from `defra-ai-plugins`) | Purpose |
+|---|---|
+| `ticket-writer` | JIRA story and task ticket writing |
+| `defra-shared` | Branching, commit messages, quality gates, security/PII and accessibility skills |
+
+Others it publishes (for example `frontend-developer`) can be added the same way. To opt in to a
+single plugin from any marketplace, add it to `plugins:`:
 
 ```yaml
 plugins:
