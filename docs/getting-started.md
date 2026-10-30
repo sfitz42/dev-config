@@ -24,50 +24,58 @@ git clone <this repo> ~/.dev-config && cd ~/.dev-config
 Python (`scripts/dotfiles`). It is safe to re-run. Run on a terminal with no options, it finishes
 in the wizard; with options (or `--dry-run`), it runs `scripts/dotfiles install` directly.
 
-## The wizard 🪄
+## The wizard 💾
 
 ```sh
 scripts/dotfiles            # on a terminal, with no command
-scripts/dotfiles conjure    # the same, explicitly
-uv run conjure              # the same, through uv
+scripts/dotfiles wizard     # the same, explicitly
+uv run wizard               # the same, through uv
 ```
 
-**conjure** is a step-by-step wizard over the same installer. A rail down the left shows each
-step and where you are. Every page has **← Back**, **Next →** and **Cancel**, and nothing changes
-until you cast.
+The **dev-config Setup Wizard** is a step-by-step wizard over the same installer, written as an
+affectionate parody of a 2000s Windows setup wizard. A rail down the left shows each step and
+where you are. Every page has **← Back**, **Next →** and **Cancel**, and nothing changes until you
+click **Install**.
 
 1. **Welcome**: the machine it found (OS, distro, arch, package manager, container runtime,
    Ollama and its version), how many listed models are pulled, the last install and whether
    updates are waiting.
-2. **Choose a path** (first run): *Quick cast*, the recommended setup for this machine, or *Open
-   the spellbook* to choose everything yourself. If you've installed before, you get **The
-   Grimoire** instead, with four options:
-   - *Rewrite the spellbook*: change what's installed
+2. **Setup Type** (first run): *Typical*, the recommended setup for this machine, or *Custom* to
+   choose everything yourself. If you've installed before, you get **Program Maintenance**
+   instead, with four options:
+   - *Modify*: change what's installed
    - *Update*: pull the latest changes, then re-apply
-   - *Mend*: re-apply what you installed, then run `doctor`
-   - *Banish*: remove the links and restore your backups
-3. **Spellbook** and **Enchantments** (if you're choosing yourself):
-   - **Spellbook**: tick packages, config modules, agents, models and extras. Anything that
-     doesn't apply to this machine is greyed out with the reason, so you can't select it.
-   - **Enchantments**: set sudo, unpinned vendor scripts, optional packages and source
+   - *Repair*: re-apply what you installed, then run `doctor`
+   - *Remove*: remove the links and restore your backups
+3. **Select Components** and **Advanced Options** (Custom or Modify):
+   - **Select Components**: tick packages, config modules, agents, models and extras. Anything
+     that doesn't apply to this machine is greyed out with the reason, so you can't select it.
+   - **Advanced Options**: set sudo, unpinned vendor scripts, optional packages and source
      preference.
-4. **Scrying** (update): the incoming commits, the changed files and which components they touch.
-5. **Incantation**: review what will happen, optionally as a rehearsal (dry run), then cast.
-6. **Casting**: output streams into the window. Prompts appear as dialogs, and sudo asks for your
-   password once, up front.
-7. **Complete**: a summary of each step, plus a restart prompt if an update changed conjure
-   itself.
+4. **Checking for Updates** (update): the incoming commits, the changed files and which
+   components they touch.
+5. **Ready to Install**: review what will happen, optionally as a simulation (dry run), then
+   click Install.
+6. **Installing**: output streams into the window. Prompts appear as dialogs, and sudo asks for
+   your password once, up front.
+7. **Finish**: a summary of each step, plus a restart prompt if an update changed Setup itself.
 
-It's animated: a twinkling hat, a sparkle that runs down the step rail, a crystal ball while it
-fetches, a scene for each stage while casting (a cauldron for packages, a neural net for models,
-and so on), and a burst, a puff of smoke or a dissolve at the end. `--calm` (or `CONJURE_CALM=1`,
-or `TERM=dumb`) turns all of it off.
+It's animated: a flickering CRT monitor, a cursor that runs down the step rail, packets hopping
+to a globe while it fetches, a scene for each stage while installing (a page flying between
+folders for packages, a neural net that starts talking for models, files dropping into the
+Recycle Bin on removal, and so on) with a running commentary and a time-remaining estimate as
+reliable as it ever was, and a wave of the wand, a shaking error box or a dissolve at the end. `--calm` (or
+`DEVCONFIG_CALM=1`, or `TERM=dumb`) turns all of it off.
+
+To watch the installing page without installing anything, `scripts/dotfiles wizard --demo` plays
+every stage with pretend output (`--demo fail` and `--demo remove` show the other endings;
+`--pace 10` gives each stage ten seconds instead of six).
 
 Everything the wizard does can also be scripted with the commands below.
 
 ## Local models and extras
 
-**Models** have their own tab in the wizard's spellbook. Each model in `models.yaml` is listed with
+**Models** have their own tab in the wizard's Select Components page. Each model in `models.yaml` is listed with
 its size and whether it's already pulled ([models](local-models/models.md)):
 - Models you've already pulled are ticked by default, so every install, update or Mend checks them
   for updates (a quick manifest check).

@@ -16,21 +16,24 @@ Windows, `scripts\bootstrap.ps1` checks WSL and installs uv, and `devbox` runs o
 
 ## The wizard
 
-`scripts/dotfiles` with no command (or `uv run conjure`) opens **conjure** 🪄, a step-by-step
-installer in the terminal:
+`scripts/dotfiles` with no command (or `scripts/dotfiles wizard`, or `uv run wizard`) opens the
+**dev-config Setup Wizard** 💾, a step-by-step installer in the terminal, done in the style of a
+2000s Windows setup wizard:
 
 1. It detects the platform: OS, distro, arch, package manager, container runtime, and Ollama
    (on Windows, when you're in WSL).
-2. You choose a path: a *quick cast* with the recommended setup, or the *spellbook*, where you
-   tick packages, config, agents, models and extras one by one. Anything that doesn't apply to
-   this machine is greyed out with the reason.
-3. You review it, optionally as a rehearsal (dry run), then cast. Output streams live, prompts
-   appear as dialogs, and sudo asks for your password once.
+2. You pick a setup type: *Typical*, the recommended setup, or *Custom*, where you tick
+   packages, config, agents, models and extras one by one. Anything that doesn't apply to this
+   machine is greyed out with the reason.
+3. You review it, optionally as a simulation (dry run), then click Install. Output streams live,
+   prompts appear as dialogs, and sudo asks for your password once.
 
-Run it again after an install and it offers to modify, update, mend (re-apply, then check), or
-uninstall. Updates show the incoming commits and the components they touch before
-fast-forwarding, then re-apply what you installed. It's animated; `--calm` (or `CONJURE_CALM=1`)
-turns that off. More in [getting started](docs/getting-started.md#the-wizard-).
+Run it again after an install and you get Program Maintenance: modify, update, repair (re-apply,
+then check), or remove. Updates show the incoming commits and the components they touch before
+fast-forwarding, then re-apply what you installed. It's animated; `--calm` (or
+`DEVCONFIG_CALM=1`) turns that off, and `--demo` plays the installing page with pretend output
+so you can watch it without installing anything. More in
+[getting started](docs/getting-started.md#the-wizard-).
 
 ## Scripted
 
@@ -94,5 +97,5 @@ link to the page that covers them.
 | | Pi | [Pi](docs/agents/pi.md) |
 
 Start with [docs/getting-started.md](docs/getting-started.md). Take just one piece with the
-wizard's spellbook, with `scripts/dotfiles link --only zsh`, or by copying a file out of
+wizard's Custom setup, with `scripts/dotfiles link --only zsh`, or by copying a file out of
 `config/`.

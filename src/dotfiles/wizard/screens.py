@@ -1,8 +1,8 @@
 """The wizard's pages. Each one sits beside a step rail and ends in ← Back / Next → / Cancel.
 
-Welcome → Choose a path (first time) or Grimoire (installed before)
-        → [Spellbook → Enchantments] or [Scrying]
-        → Incantation (review) → Casting (run) → Complete
+Welcome → Setup Type (first time) or Program Maintenance (installed before)
+        → [Select Components → Advanced Options] or [Checking for Updates]
+        → Ready to Install (review) → Installing (run) → Finish
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ from dotfiles import cli, core, install, models, packages, platform, state, upda
 from dotfiles.wizard import anim, model, theme, widgets
 
 if TYPE_CHECKING:
-    from dotfiles.wizard.app import ConjureApp
+    from dotfiles.wizard.app import SetupApp
 
 Job = Callable[[core.Ctx], dict[str, bool]]
 
@@ -77,31 +77,31 @@ class Session:
 
     @property
     def restarts(self) -> bool:
-        """The update changes the installer itself, so conjure restarts on the new code."""
+        """The update changes the installer itself, so Setup restarts on the new code."""
         return self.pulls and "installer" in self.touched
 
 
 STEP_LABELS = {
     "welcome": "Welcome",
-    "path": "Choose a path",
-    "grimoire": "The Grimoire",
-    "spellbook": "Spellbook",
-    "enchant": "Enchantments",
-    "scrying": "Scrying",
-    "incantation": "Incantation",
-    "casting": "Casting",
-    "done": "Complete",
+    "type": "Setup Type",
+    "maintenance": "Program Maintenance",
+    "components": "Select Components",
+    "options": "Advanced Options",
+    "updates": "Checking for Updates",
+    "ready": "Ready to Install",
+    "installing": "Installing",
+    "finish": "Finish",
 }
 
 
 def steps(s: Session) -> list[tuple[str, str]]:
     """The steps for the path chosen so far (the rail redraws as choices change it)."""
-    keys = ["welcome", "grimoire" if s.saved else "path"]
+    keys = ["welcome", "maintenance" if s.saved else "type"]
     if s.mode == "update":
-        keys.append("scrying")
+        keys.append("updates")
     elif s.mode in ("install", "modify") and (s.custom or s.mode == "modify"):
-        keys += ["spellbook", "enchant"]
-    keys += ["incantation", "casting", "done"]
+        keys += ["components", "options"]
+    keys += ["ready", "installing", "finish"]
     return [(k, STEP_LABELS[k]) for k in keys]
 
 
@@ -117,7 +117,7 @@ class ConfirmModal(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
-            yield Static(f"🔮 {escape(self.question.strip())}")
+            yield Static(f"⚠  {escape(self.question.strip())}")
             with Horizontal():
                 yield Button(self.no_label, id="no")
                 yield Button(self.yes_label, id="yes", variant="primary")
@@ -145,7 +145,7 @@ class Page(Screen[None]):
 
     @property
     def session(self) -> Session:
-        return cast("ConjureApp", self.app).session
+        return cast("SetupApp", self.app).session
 
     def next_text(self) -> str:
         return "Next →"
@@ -172,7 +172,7 @@ class Page(Screen[None]):
 
     @property
     def calm(self) -> bool:
-        return cast("ConjureApp", self.app).calm
+        return cast("SetupApp", self.app).calm
 
     def _step_index(self) -> int:
         keys = [k for k, _ in steps(self.session)]
@@ -180,13 +180,13 @@ class Page(Screen[None]):
 
     def on_mount(self) -> None:
         self._frame = 0
-        self._trail: int | None = None  # rail row the sparkle is passing
+        self._trail: int | None = None  # rail row the cursor is passing
         self._popped: int | None = None  # step whose ✓ is showing bright
         self._pop_ticks = 0
-        app = cast("ConjureApp", self.app)
+        app = cast("SetupApp", self.app)
         here = self._step_index()
         if not self.calm and app.last_step is not None and here > app.last_step:
-            self._trail = app.last_step  # a sparkle runs down from the step we left
+            self._trail = app.last_step  # the cursor runs down from the step we left
         app.last_step = here
         self.refresh_rail()
         self.query_one("#next", Button).focus()
@@ -198,7 +198,7 @@ class Page(Screen[None]):
             self._ticker.pause()
 
     def on_screen_resume(self) -> None:
-        cast("ConjureApp", self.app).last_step = self._step_index()
+        cast("SetupApp", self.app).last_step = self._step_index()
         self.refresh_rail()
         if not self.calm:
             self._ticker.resume()
@@ -222,7 +222,7 @@ class Page(Screen[None]):
 
     def refresh_rail(self) -> None:
         footer = self.session.plat.label
-        frame = None if self.calm else getattr(self, "_frame", 0) // 3  # twinkle slowly
+        frame = None if self.calm else getattr(self, "_frame", 0) // 3  # flicker slowly
         rail = widgets.rail(
             steps(self.session),
             self.step,
@@ -265,7 +265,12 @@ class Page(Screen[None]):
                 self.app.exit()
 
         self.app.push_screen(
-            ConfirmModal("Leave conjure? Nothing more will be changed.", yes="Leave", no="Stay"),
+            ConfirmModal(
+                "Are you sure you want to cancel dev-config Setup?\n\nIf you exit now, Setup "
+                "will not be complete. You may run Setup again at a later time.",
+                yes="Exit Setup",
+                no="Resume",
+            ),
             answered,
         )
 
@@ -277,7 +282,7 @@ def platform_card(plat: platform.Platform, choices: list[model.Choice] | None = 
     t = Table.grid(padding=(0, 2))
     t.add_column(style=theme.MUTED)
     t.add_column()
-    t.add_row(f"[b {theme.GOLD}]🔮 Your realm[/]", "")
+    t.add_row(f"[b {theme.GOLD}]💻 System Information[/]", "")
     t.add_row("system", plat.label)
     t.add_row("arch", plat.arch)
     t.add_row("packages from", plat.pkg_manager or ("Homebrew" if plat.brew else "—"))
@@ -318,15 +323,17 @@ def status_card(saved: dict[str, Any] | None, inc: update.Incoming | None) -> Ta
     t = Table.grid(padding=(0, 2))
     t.add_column(style=theme.MUTED)
     t.add_column()
-    t.add_row(f"[b {theme.GOLD}]📜 Grimoire[/]", "")
+    t.add_row(f"[b {theme.GOLD}]📋 Installation Status[/]", "")
     if saved:
         commit = (saved.get("commit") or "?")[:7]
-        t.add_row("last cast", f"{commit} · {saved.get('updated_at', '?')[:16].replace('T', ' ')}")
+        t.add_row(
+            "last installed", f"{commit} · {saved.get('updated_at', '?')[:16].replace('T', ' ')}"
+        )
     else:
-        t.add_row("last cast", "never on this machine")
+        t.add_row("last installed", "never on this computer")
     t.add_row("repo at", state.git("rev-parse", "--short", "HEAD") or "?")
     if inc is None:
-        t.add_row("updates", "[dim]gazing…[/]")
+        t.add_row("updates", "[dim]searching for updates…[/]")
     elif inc.upstream is None:
         t.add_row("updates", "no upstream branch")
     elif inc.behind:
@@ -343,8 +350,8 @@ class WelcomePage(Page):
         return False
 
     def body(self) -> ComposeResult:
-        app = cast("ConjureApp", self.app)
-        # the first time the wizard opens, the wand writes the title out
+        app = cast("SetupApp", self.app)
+        # the first time the wizard opens, the title types itself out
         self._typed: int | None = None if self.calm or app.intro_done else 0
         app.intro_done = True
         title = anim.typed_title(theme.TITLE, self._typed)
@@ -353,16 +360,18 @@ class WelcomePage(Page):
             yield Static(platform_card(self.session.plat, self.session.choices), classes="card")
             yield Static(status_card(self.session.saved, None), id="status", classes="card")
         yield Static(
-            "This wizard sets up your development environment: command-line tools, shell and "
-            "editor config, and coding agents. Files it replaces are backed up first, and "
-            "nothing changes until you cast on the last step.",
+            "Welcome to the dev-config Setup Wizard. This wizard will install command-line "
+            "tools, shell and editor config, and coding agents on your computer. Files it "
+            "replaces are backed up first, and nothing changes until you click Install.\n\n"
+            "It is strongly recommended that you exit all other programs before continuing. "
+            "(Nobody ever has.)",
             classes="text",
         )
-        yield Static("Press Next to begin.", classes="hint")
+        yield Static("Click Next to continue, or Cancel to exit Setup.", classes="hint")
 
     def on_mount(self) -> None:
         super().on_mount()
-        self.gaze()
+        self.check_updates()
 
     def on_key(self) -> None:
         self._typed = None  # any key finishes the title at once
@@ -373,11 +382,11 @@ class WelcomePage(Page):
             if self._typed >= len(theme.TITLE):
                 self._typed = None
         title = anim.typed_title(theme.TITLE, self._typed)
-        banner = anim.twinkle(theme.banner(title), frame // 3)
+        banner = anim.flicker(theme.banner(title), frame // 3)
         self.query_one("#banner", Static).update(banner)
 
     @work(thread=True, exclusive=True)
-    def gaze(self) -> None:
+    def check_updates(self) -> None:
         if update.is_checkout():
             update.fetch()
             inc = update.incoming()
@@ -389,10 +398,10 @@ class WelcomePage(Page):
         self.query_one("#status", Static).update(status_card(self.session.saved, inc))
 
     def go_next(self) -> None:
-        self.app.push_screen(GrimoirePage() if self.session.saved else PathPage())
+        self.app.push_screen(MaintenancePage() if self.session.saved else SetupTypePage())
 
 
-# ---- choosing a path ------------------------------------------------------------------------
+# ---- setup type ----------------------------------------------------------------------------
 
 
 class ChoicePage(Page):
@@ -405,7 +414,7 @@ class ChoicePage(Page):
             for i, (label, _) in enumerate(self.OPTIONS):
                 yield RadioButton(label, value=i == self.initial())
         box = Static(self.OPTIONS[self.initial()][1], id="choice-help", classes="describe")
-        box.border_title = "What this does"
+        box.border_title = "Description"
         yield box
 
     def initial(self) -> int:
@@ -428,21 +437,21 @@ class ChoicePage(Page):
         self.refresh_rail()
 
 
-class PathPage(ChoicePage):
-    step = "path"
-    title_text = "🧭 Choose a path"
-    hint = "How much of the spellbook do you want to see?"
+class SetupTypePage(ChoicePage):
+    step = "type"
+    title_text = "💿 Setup Type"
+    hint = "Choose the setup type that best suits your needs."
     OPTIONS = [
         (
-            "✨ Quick cast — the recommended setup for this machine",
+            "Typical (recommended) — for most users",
             "Installs every required package for this platform, links all the config that "
             "applies here and sets up both coding agents. Models you've already pulled are "
             "checked for updates; new models (they're large) are only downloaded if you tick them "
-            "in the spellbook. Optional packages and extras are left out. You'll still see "
+            "under Custom. Optional packages and extras are left out. You'll still see "
             "everything on the review step before anything changes.",
         ),
         (
-            "📖 Open the spellbook — choose every component",
+            "Custom — for advanced users. You know who you are.",
             "Pick packages, config modules, coding agents and extras (local models, devbox "
             "images) one by one, then set how they're installed: sudo, source preference, "
             "optional packages.",
@@ -459,36 +468,40 @@ class PathPage(ChoicePage):
     def go_next(self) -> None:
         s = self.session
         if s.custom:
-            self.app.push_screen(SpellbookPage())
+            self.app.push_screen(ComponentsPage())
         else:
             s.checked = {c.value for c in s.choices if c.default and c.available}
-            self.app.push_screen(IncantationPage())
+            self.app.push_screen(ReadyPage())
 
 
-class GrimoirePage(ChoicePage):
-    step = "grimoire"
-    title_text = "📜 The Grimoire"
-    hint = "conjure has been cast on this machine before. What next?"
+class MaintenancePage(ChoicePage):
+    step = "maintenance"
+    title_text = "🔧 Program Maintenance"
+    hint = (
+        "Welcome back. Setup has detected that dev-config is already installed on this "
+        "computer. Select one of the options below."
+    )
     MODES = ["modify", "update", "repair", "remove"]
     OPTIONS = [
         (
-            "📖 Rewrite the spellbook — change what's installed",
-            "Opens the spellbook with your last choices ticked, so you can add or drop components.",
+            "Modify — change which components are installed",
+            "Opens Select Components with your last choices ticked, so you can add or drop "
+            "components.",
         ),
         (
-            "📜 Update — pull the latest changes and re-apply",
+            "Update — pull the latest changes and re-apply",
             "Fetches dev-config, shows the incoming commits and the components they touch, then "
             "fast-forwards and re-applies what you installed.",
         ),
         (
-            "🩺 Mend — re-apply and check",
+            "Repair — re-apply and check",
             "Re-applies what you installed (missing packages, broken or moved links), then runs "
             "the doctor to report anything still wrong.",
         ),
         (
-            "🧹 Banish — remove links and restore backups",
-            "Removes every link conjure made and moves your backed-up files back. Installed "
-            "packages are left alone.",
+            "Remove — remove links and restore backups",
+            "Removes every link Setup made and moves your backed-up files back. Installed "
+            "packages are left alone, like every uninstaller ever.",
         ),
     ]
 
@@ -503,14 +516,14 @@ class GrimoirePage(ChoicePage):
     def go_next(self) -> None:
         mode = self.session.mode
         if mode == "modify":
-            self.app.push_screen(SpellbookPage())
+            self.app.push_screen(ComponentsPage())
         elif mode == "update":
-            self.app.push_screen(ScryingPage())
+            self.app.push_screen(UpdatesPage())
         else:
-            self.app.push_screen(IncantationPage())
+            self.app.push_screen(ReadyPage())
 
 
-# ---- spellbook: choose ----------------------------------------------------------------------
+# ---- select components ---------------------------------------------------------------------
 
 
 def _prompt(c: model.Choice) -> str:
@@ -526,10 +539,13 @@ def _prompt(c: model.Choice) -> str:
     return f"{escape(c.label)}  {note}".rstrip()
 
 
-class SpellbookPage(Page):
-    step = "spellbook"
-    title_text = "📖 The Spellbook"
-    hint = "Space toggles · a/x tick all/none in the tab · greyed out: not for this machine"
+class ComponentsPage(Page):
+    step = "components"
+    title_text = "📦 Select Components"
+    hint = (
+        "Select the components you want to install; clear the components you do not want to "
+        "install. Space toggles · a/x tick all/none in the tab · greyed out: not for this computer"
+    )
 
     BINDINGS = [("a", "all", "All in tab"), ("x", "none", "None in tab")]
 
@@ -562,7 +578,8 @@ class SpellbookPage(Page):
     def _count(self) -> None:
         available = sum(1 for c in self.session.choices if c.available)
         self.query_one("#selected-count", Static).update(
-            f"{len(self.checked())} of {available} components ticked"
+            f"Space required: {len(self.checked())} of {available} components · "
+            "Space available: probably fine"
         )
 
     def _active_list(self) -> SelectionList[str]:
@@ -581,16 +598,16 @@ class SpellbookPage(Page):
 
     def go_next(self) -> None:
         self.session.checked = self.checked()
-        self.app.push_screen(EnchantPage())
+        self.app.push_screen(OptionsPage())
 
 
-# ---- enchantments: options ------------------------------------------------------------------
+# ---- advanced options ----------------------------------------------------------------------
 
 
-class EnchantPage(Page):
-    step = "enchant"
-    title_text = "🧪 Enchantments"
-    hint = "How the spell should be cast."
+class OptionsPage(Page):
+    step = "options"
+    title_text = "⚙ Advanced Options"
+    hint = "Most users should not change these settings."
 
     def _option(self, id_: str, value: bool, text: str) -> Horizontal:
         return Horizontal(Switch(value=value, id=id_), Label(text), classes="option")
@@ -601,7 +618,7 @@ class EnchantPage(Page):
             yield self._option(
                 "sudo",
                 s.settings.sudo,
-                "Allow sudo for system packages (dnf/apt/.pkg); asks once up front",
+                "Allow Setup to make changes to your device (sudo for dnf/apt/.pkg, asked once)",
             )
             yield self._option(
                 "yes",
@@ -634,13 +651,13 @@ class EnchantPage(Page):
         s.settings = dataclasses.replace(
             s.settings, sudo=self._switch("sudo", True), yes=self._switch("yes")
         )
-        self.app.push_screen(IncantationPage())
+        self.app.push_screen(ReadyPage())
 
 
-# ---- scrying: updates -----------------------------------------------------------------------
+# ---- checking for updates -----------------------------------------------------------------------
 
 
-def vision(inc: update.Incoming, touched: list[str]) -> Group:
+def update_summary(inc: update.Incoming, touched: list[str]) -> Group:
     parts: list[Any] = []
     if inc.upstream is None:
         parts.append(Text("This branch has no upstream to update from.", style="#ff6b8b"))
@@ -665,7 +682,10 @@ def vision(inc: update.Incoming, touched: list[str]) -> Group:
         parts.append(Text(f"Touches: {', '.join(touched) or 'nothing you install'}", style="b"))
         if "installer" in touched:
             parts.append(
-                Text("The installer itself changed: conjure restarts after the pull.", style="i")
+                Text(
+                    "Setup itself has been updated and will restart after the download.",
+                    style="i",
+                )
             )
     why = update.blocker(inc)
     if why:
@@ -673,30 +693,30 @@ def vision(inc: update.Incoming, touched: list[str]) -> Group:
     return Group(*parts)
 
 
-class ScryingPage(Page):
-    step = "scrying"
-    title_text = "🔮 Scrying"
+class UpdatesPage(Page):
+    step = "updates"
+    title_text = "🌐 Checking for Updates"
     hint = "What has changed upstream."
 
     def body(self) -> ComposeResult:
-        self._gazing = True
-        with Horizontal(id="gaze-row"):
-            yield Static(anim.block(anim.ball(0)), id="ball")
-            yield Static("gazing into the remote…", id="gazing")
-        with VerticalScroll(id="vision"):
-            yield Static("", id="vision-body")
+        self._connecting = True
+        with Horizontal(id="connect-row"):
+            yield Static(anim.block(anim.connecting(0)), id="modem")
+            yield Static("Contacting the update server… (it's git fetch)", id="connecting")
+        with VerticalScroll(id="update-list"):
+            yield Static("", id="update-body")
 
     def on_mount(self) -> None:
         super().on_mount()
         self.query_one("#next", Button).disabled = True
-        self.gaze()
+        self.check_updates()
 
     def animate_frame(self, frame: int) -> None:
-        if self._gazing:
-            self.query_one("#ball", Static).update(anim.block(anim.ball(frame // 2)))
+        if self._connecting:
+            self.query_one("#modem", Static).update(anim.block(anim.connecting(frame // 2)))
 
     @work(thread=True, exclusive=True)
-    def gaze(self) -> None:
+    def check_updates(self) -> None:
         if not update.is_checkout():
             inc, fetched = update.Incoming(None, [], [], [], 0), True
         else:
@@ -705,40 +725,40 @@ class ScryingPage(Page):
         self.app.call_from_thread(self._show, inc, fetched)
 
     def _show(self, inc: update.Incoming, fetched: bool) -> None:
-        self._gazing = False
-        self.query_one("#gaze-row").display = False
+        self._connecting = False
+        self.query_one("#connect-row").display = False
         s = self.session
         s.incoming = inc
         s.touched = update.affected([p for _, p in inc.files])
-        body: Any = vision(inc, s.touched)
+        body: Any = update_summary(inc, s.touched)
         if not fetched:
             warning = Text("! git fetch failed: showing what was already fetched", theme.GOLD)
             body = Group(warning, body)
-        self.query_one("#vision-body", Static).update(body)
+        self.query_one("#update-body", Static).update(body)
         nxt = self.query_one("#next", Button)
         nxt.disabled = inc.upstream is None or update.blocker(inc) is not None
         if not nxt.disabled:
             nxt.focus()
 
     def go_next(self) -> None:
-        self.app.push_screen(IncantationPage())
+        self.app.push_screen(ReadyPage())
 
 
-# ---- incantation: review --------------------------------------------------------------------
+# ---- ready to install: review --------------------------------------------------------------------
 
 
 def selection_tree(s: Session, sel: install.Selection) -> Tree:
     if s.mode == "remove":
-        tree = Tree(f"[b {theme.GOLD}]🧹 This spell will[/]")
-        tree.add("remove every link conjure created")
+        tree = Tree(f"[b {theme.GOLD}]🗑 Setup will[/]")
+        tree.add("remove every link Setup created")
         tree.add("move backed-up files (~/.config-backups) back into place")
         tree.add("[dim]leave installed packages, clones and agent settings alone[/]")
         return tree
-    tree = Tree(f"[b {theme.GOLD}]🪄 This spell will[/]")
+    tree = Tree(f"[b {theme.GOLD}]💿 Setup will[/]")
     if s.pulls and s.incoming is not None:
-        tree.add(f"📜 pull {s.incoming.behind} commit(s) from {s.incoming.upstream}")
+        tree.add(f"🌐 pull {s.incoming.behind} commit(s) from {s.incoming.upstream}")
     if s.restarts:
-        tree.add("🔁 restart conjure (the installer changed), then re-apply what you installed")
+        tree.add("🔁 restart Setup (the installer changed), then re-apply what you installed")
         return tree
     if "packages" in sel.modules:
         node = tree.add("📦 install missing packages")
@@ -747,7 +767,7 @@ def selection_tree(s: Session, sel: install.Selection) -> Tree:
         tree.add("📚 clone external repos (left alone if already there)")
     linked = [m for m in sel.modules if m in install.LINK_MODULES]
     if linked:
-        node = tree.add("📜 link config (existing files are backed up first)")
+        node = tree.add("📁 link config (existing files are backed up first)")
         node.add(", ".join(linked))
     if "agents" in sel.modules:
         tree.add(f"🤖 sync agents: {', '.join(sel.agents) or 'all'}")
@@ -764,7 +784,7 @@ def selection_tree(s: Session, sel: install.Selection) -> Tree:
         if extra == "models" or extra.startswith("models:"):
             tree.add(f"🧠 pull every model for {extra.partition(':')[2] or 'each runtime found'}")
         else:
-            tree.add(f"✨ build devbox image(s): {extra.split(':', 1)[1]}")
+            tree.add(f"🧱 build devbox image(s): {extra.split(':', 1)[1]}")
     if s.mode == "repair":
         tree.add("🩺 then run the doctor")
     if not (sel.modules or sel.extras or s.pulls):
@@ -787,18 +807,26 @@ def selection_tree(s: Session, sel: install.Selection) -> Tree:
     return tree
 
 
-class IncantationPage(Page):
-    step = "incantation"
-    title_text = "📜 The Incantation"
-    hint = "Review before casting. Nothing has changed yet."
+class ReadyPage(Page):
+    step = "ready"
+    title_text = "📋 Ready to Install"
+    hint = (
+        "Setup has enough information to begin. Click Back to review or change any settings. "
+        "Nothing has changed yet."
+    )
+
+    def compose(self) -> ComposeResult:
+        if self.session.mode == "remove":
+            self.title_text = "📋 Ready to Remove"
+        yield from super().compose()
 
     def next_text(self) -> str:
-        return "🧹 Banish" if self.session.mode == "remove" else "🪄 Cast"
+        return "Remove" if self.session.mode == "remove" else "🪄 Install"
 
     def selection(self) -> install.Selection:
         s = self.session
         if s.mode in ("update", "repair"):
-            app = cast("ConjureApp", self.app)
+            app = cast("SetupApp", self.app)
             # extras (image builds, model downloads) only re-run when an update touched them
             return app.saved_selection(s.touched if s.mode == "update" else [])
         return model.selection(s.checked, s.choices, s.opts)
@@ -807,7 +835,7 @@ class IncantationPage(Page):
         yield Static(selection_tree(self.session, self.selection()), id="tree")
         yield Horizontal(
             Switch(value=self.session.settings.dry_run, id="dry"),
-            Label("Rehearsal (dry run): show every step, change nothing"),
+            Label("Simulate installation (dry run): show every step, change nothing"),
             classes="option",
         )
 
@@ -823,18 +851,18 @@ class IncantationPage(Page):
             and not s.restarts
             and model.needs_sudo(sel)
         )
-        self.app.push_screen(CastingPage(job, count, sudo_first=sudo))
+        self.app.push_screen(InstallingPage(job, count, sudo_first=sudo))
 
 
 def build_job(s: Session, sel: install.Selection) -> tuple[Job, int]:
     """The work for the chosen mode, and how many steps it reports for the progress bar."""
     if s.mode == "remove":
 
-        def banish(ctx: core.Ctx) -> dict[str, bool]:
+        def remove(ctx: core.Ctx) -> dict[str, bool]:
             ns = argparse.Namespace(dry_run=ctx.dry_run, yes=True)
-            return {"banish": cli.cmd_uninstall(ns) == 0}
+            return {"remove": cli.cmd_uninstall(ns) == 0}
 
-        return banish, 2
+        return remove, 2
 
     inc = s.incoming
     pulls, restarts, repair = s.pulls, s.restarts, s.mode == "repair"
@@ -858,13 +886,13 @@ def build_job(s: Session, sel: install.Selection) -> tuple[Job, int]:
     return job, model.step_count(sel) + int(pulls) + (5 if repair else 0)
 
 
-# ---- casting: run ---------------------------------------------------------------------------
+# ---- installing ----------------------------------------------------------------------------
 
 
-class CastingPage(Page):
-    step = "casting"
-    title_text = "🪄 Casting"
-    hint = "Output streams below. Prompts appear as dialogs."
+class InstallingPage(Page):
+    step = "installing"
+    title_text = "💿 Installing dev-config"
+    hint = "Please wait while Setup installs dev-config. This may take several minutes."
 
     BINDINGS = [Binding("escape", "noop", show=False)]
 
@@ -875,19 +903,28 @@ class CastingPage(Page):
         self.good = False
         self.results: dict[str, bool] = {}
         self.ctx: core.Ctx | None = None
-        self._current = "gathering power"
-        self._stage = "sparkle"  # which anim scene plays while this step runs
-        self._finale: str | None = None  # burst | fizzle | dissolve, once the job is done
+        self._current = "preparing to install"
+        self._stage = "idle"  # which anim scene plays while this step runs
+        self._finale: str | None = None  # burst | error | dissolve, once the job is done
         self._finale_start = 0
-        self._banished: list[str] = []  # paths unlinked/restored, for the dissolve
+        self._removed: list[str] = []  # paths unlinked/restored, for the dissolve
         self._stop_keepalive = threading.Event()
+        self.verb = "Copying files"  # the status line's "Copying files: <step>…"
 
     def can_back(self) -> bool:
         return False
 
+    def compose(self) -> ComposeResult:
+        if self.session.mode == "remove":
+            self.title_text = "🗑 Removing dev-config"
+            self.hint = "Please wait while Setup removes dev-config from your computer."
+            self.verb = "Removing files"
+        yield from super().compose()
+
     def body(self) -> ComposeResult:
-        yield Static(Text(f"casting {self._current}…"), id="casting-status")
+        yield Static(Text(f"{self.verb}: {self._current}…"), id="install-status")
         yield Static("", id="scene", classes="calm" if self.calm else "")
+        yield Static("", id="quip", classes="calm" if self.calm else "")
         yield ProgressBar(total=self.steps, show_eta=False, id="progress")
         yield Static("", id="live")  # the current download bar, redrawn in place
         yield RichLog(id="log", wrap=True, markup=False, highlight=False)
@@ -899,7 +936,7 @@ class CastingPage(Page):
         approved = self.session.settings.sudo
         if self.sudo_first:
             approved = self._sudo_login()
-        self.cast(approved)
+        self.install_job(approved)
 
     def action_noop(self) -> None:
         pass
@@ -908,7 +945,7 @@ class CastingPage(Page):
         """sudo reads the password from a terminal, so hand it the real one for a moment, then
         keep the timestamp fresh while the job runs without one."""
         with self.app.suspend():
-            print("\n🪄 conjure needs sudo for system packages.\n")
+            print("\n⚠  Setup requires administrator privileges to continue (sudo).\n")
             ok_ = subprocess.run(["sudo", "-v"]).returncode == 0
         if ok_:
             threading.Thread(target=self._sudo_keepalive, daemon=True).start()
@@ -924,16 +961,25 @@ class CastingPage(Page):
             f = frame - self._finale_start
             if self._finale == "burst":
                 lines = anim.burst(f)
-            elif self._finale == "fizzle":
-                lines = anim.fizzle(f)
+            elif self._finale == "error":
+                lines = anim.error_box(f)
             else:
-                lines = anim.dissolve(self._banished, f)
+                lines = anim.dissolve(self._removed, f)
             scene.update(anim.block(lines))
+            self.query_one("#quip", Static).update("")
             return
-        spark = theme.SPINNER[frame % len(theme.SPINNER)]
-        status = Text.assemble((f"{spark} ", theme.GOLD), (f"casting {self._current}…", "#ece6ff"))
-        self.query_one("#casting-status", Static).update(status)
+        spin = theme.SPINNER[frame % len(theme.SPINNER)]
+        status = Text.assemble(
+            (f"{spin} ", theme.GOLD), (f"{self.verb}: {self._current}…", "#ece6ff")
+        )
+        self.query_one("#install-status", Static).update(status)
         scene.update(anim.block(anim.scene(self._stage, frame)))
+        quip = Text.assemble(
+            (anim.quip(self._stage, frame), "italic " + theme.MUTED),
+            ("    Time remaining: ", "dim"),
+            (anim.time_remaining(frame), theme.MUTED),
+        )
+        self.query_one("#quip", Static).update(quip)
 
     # these two run on the worker thread
     def _sink(self, level: str, msg: str) -> None:
@@ -952,7 +998,7 @@ class CastingPage(Page):
         return answer["v"]
 
     @work(thread=True, exclusive=True)
-    def cast(self, sudo_approved: bool) -> None:
+    def install_job(self, sudo_approved: bool) -> None:
         settings = self.session.settings
         previous = core.SINK
         core.SINK = self._sink
@@ -981,9 +1027,10 @@ class CastingPage(Page):
             self._stage = anim.stage_of(msg, self._stage)
             self.query_one("#progress", ProgressBar).advance(1)
             if self.calm:
-                self.query_one("#casting-status", Static).update(Text(f"casting {msg}…"))
+                status = self.query_one("#install-status", Static)
+                status.update(Text(f"{self.verb}: {msg}…"))
         if msg.startswith(("unlink ", "restore ")):
-            self._banished.append(msg.split(" ", 1)[1].replace(str(core.home()), "~"))
+            self._removed.append(msg.split(" ", 1)[1].replace(str(core.home()), "~"))
         prefix = theme.LEVEL_PREFIX.get(level, "")
         log.write(Text(prefix + msg, style=theme.LEVEL_STYLE.get(level, "")))
 
@@ -992,15 +1039,15 @@ class CastingPage(Page):
         self.good = all(results.values())
         self.query_one("#progress", ProgressBar).update(progress=self.steps)
         if not self.good:
-            head = Text("✗ Part of the spell fizzled — see the log.", style="bold #ff6b8b")
+            head = Text("✗ Setup encountered a problem — see the log.", style="bold #ff6b8b")
         elif ctx.dry_run:
-            head = Text("✨ Rehearsal complete: this is what the spell would do.", "bold #7ee0a1")
+            head = Text("✓ Simulation complete. No files were harmed.", "bold #7ee0a1")
         else:
-            head = Text("✨ The spell took hold.", style="bold #7ee0a1")
-        self.query_one("#casting-status", Static).update(head)
+            head = Text("✓ Setup has finished copying files.", style="bold #7ee0a1")
+        self.query_one("#install-status", Static).update(head)
         if not self.good:
-            self._finale = "fizzle"
-        elif self.session.mode == "remove" and self._banished:
+            self._finale = "error"
+        elif self.session.mode == "remove" and self._removed:
             self._finale = "dissolve"  # the removed links crumble away
         else:
             self._finale = "burst"
@@ -1011,20 +1058,22 @@ class CastingPage(Page):
 
     def go_next(self) -> None:
         if self.ctx is not None:
-            self.app.push_screen(DonePage(self.results, self.ctx, self.good))
+            self.app.push_screen(FinishPage(self.results, self.ctx, self.good))
 
 
-# ---- complete -------------------------------------------------------------------------------
+# ---- finish ---------------------------------------------------------------------------------
 
 
-class DonePage(Page):
-    step = "done"
+class FinishPage(Page):
+    step = "finish"
     hint = ""
 
     def __init__(self, results: dict[str, bool], ctx: core.Ctx, good: bool) -> None:
         super().__init__()
         self.results, self.ctx, self.good = results, ctx, good
-        self.title_text = "✨ Complete" if good else "✗ The spell fizzled"
+        self.title_text = (
+            "🪄 Completing the dev-config Setup Wizard" if good else "✗ Setup Interrupted"
+        )
 
     def can_back(self) -> bool:
         return False
@@ -1045,28 +1094,39 @@ class DonePage(Page):
         yield Static(Group(*lines), id="summary")
         if self.ctx.dry_run:
             yield Static(
-                "That was a rehearsal: nothing changed. Run the wizard again without "
-                "rehearsal to cast it for real.",
+                "That was a simulation: nothing changed. Run Setup again without simulating "
+                "to install it for real.",
                 classes="text",
             )
         elif not self.good:
             yield Static(
-                "Some steps failed; the log on the previous step has the details. Fix the cause "
-                "and run conjure again, or choose Mend from the Grimoire.",
+                "The wizard was interrupted before dev-config could be completely installed. "
+                "The log on the previous step has the details. Fix the cause and run Setup "
+                "again, or choose Repair from Program Maintenance.",
                 classes="text",
             )
         elif self.restarting():
             yield Static(
-                "The update changed conjure itself, so it needs to restart to re-apply what "
-                "you installed.",
+                "You must restart Setup for the changes to take effect: the update changed "
+                "Setup itself, and it needs to re-apply what you installed.",
                 classes="text",
             )
             with RadioSet(id="restart"):
-                yield RadioButton("🔁 Restart conjure now", value=True)
-                yield RadioButton("Later: I'll run scripts/dotfiles update myself")
-        elif self.session.mode != "remove":
-            yield Static("Open a new terminal to start using the new config.", classes="text")
-        yield Static("Press Finish to leave.", classes="hint")
+                yield RadioButton("Yes, I want to restart Setup now.", value=True)
+                yield RadioButton("No, I will run scripts/dotfiles update later.")
+        elif self.session.mode == "remove":
+            yield Static(
+                "dev-config was successfully removed from your computer. It is now safe to "
+                "close your terminal.",
+                classes="text",
+            )
+        else:
+            yield Static(
+                "Setup has finished installing dev-config on your computer. Open a new "
+                "terminal to start using it.",
+                classes="text",
+            )
+        yield Static("Click Finish to exit the wizard.", classes="hint")
 
     def on_mount(self) -> None:
         super().on_mount()

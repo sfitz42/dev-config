@@ -1,11 +1,11 @@
-"""The arcane look: palette, banner and stylesheet."""
+"""The classic look: palette, banner and stylesheet. Beige box, CRT glow, the works."""
 
 from __future__ import annotations
 
 from textual.theme import Theme
 
-ARCANE = Theme(
-    name="arcane",
+CLASSIC = Theme(
+    name="classic",
     primary="#9d7cff",  # violet
     secondary="#5b3fa8",
     accent="#f2c14e",  # gold
@@ -21,30 +21,32 @@ ARCANE = Theme(
 
 GOLD, VIOLET, MUTED = "#f2c14e", "#9d7cff", "#a99fc8"
 
-TITLE = "c o n j u r e"
+TITLE = "dev-config Setup"
 
-# a backslash right before "[" escapes the tag in markup, so each "\" is followed by a space.
-# {title} is filled in by banner(), so the wizard can write it out letter by letter.
-BANNER_TEMPLATE = r"""[#f2c14e]        ✦[/]
-[#9d7cff]       /\ [/]       [b #f2c14e]{title}[/]
-[#9d7cff]      /  \ [/]      [#ece6ff]the dev-config installer[/]
-[#9d7cff]     / [#f2c14e]✦[/]  \ [/]     [dim]packages · config · agents · extras[/]
-[#9d7cff]    /______\ [/] [#f2c14e]🪄[/]"""
+SUBTITLE = "[#ece6ff]Setup Wizard 🪄 · Version 1.0[/] [dim](it's always 1.0)[/]"
+
+# {title} is filled in by banner(), so the wizard can type it out letter by letter.
+# Each ▒ on the screen flickers (anim.flicker).
+BANNER_TEMPLATE = r"""[#9d7cff] ┌────────┐[/]
+[#9d7cff] │[/][#f2c14e] ▒▒▒▒▒▒ [/][#9d7cff]│[/]     [b #f2c14e]{title}[/]
+[#9d7cff] │[/][#f2c14e] ▒▒▒▒▒▒ [/][#9d7cff]│[/]     {subtitle}
+[#9d7cff] └───┬┬───┘[/]     [dim]packages · config · agents · extras[/]
+[#a99fc8]  ▔▔▔▔▔▔▔▔[/]  [#f2c14e]💾[/]"""
 
 
 def banner(title: str = TITLE) -> str:
-    return BANNER_TEMPLATE.replace("{title}", title)
+    return BANNER_TEMPLATE.replace("{subtitle}", SUBTITLE).replace("{title}", title)
 
 
 BANNER = banner()
 
-# the smaller hat at the top of the step rail
-RAIL_HAT = r"""[#f2c14e]   ✦[/]
-[#9d7cff]  /\ [/]  [b #f2c14e]conjure[/]
-[#9d7cff] /[#f2c14e]✦[/] \ [/]
-[#9d7cff]/____\ [/]"""
+# the smaller monitor at the top of the step rail
+RAIL_HAT = r"""[#9d7cff]┌────┐[/]
+[#9d7cff]│[/][#f2c14e]▒▒▒▒[/][#9d7cff]│[/]  [b #f2c14e]Setup[/] 🪄
+[#9d7cff]└─┬┬─┘[/]
+[#a99fc8] ▔▔▔▔ [/]"""
 
-SPINNER = "✦✧✶✷✸✹✺✹✸✷✶✧"
+SPINNER = "|/-\\"
 
 # style per core.SINK level, for the casting log
 LEVEL_STYLE = {
@@ -56,7 +58,7 @@ LEVEL_STYLE = {
     "out": "#8a80a8",
     "info": "#ece6ff",
 }
-LEVEL_PREFIX = {"ok": "✓ ", "warn": "! ", "err": "✗ ", "step": "✦ ", "dry": "[dry-run] "}
+LEVEL_PREFIX = {"ok": "✓ ", "warn": "! ", "err": "✗ ", "step": "▸ ", "dry": "[dry-run] "}
 
 CSS = """
 Screen {
@@ -150,12 +152,12 @@ SelectionList {
 #prefer {
     width: 40;
 }
-#tree, #vision {
+#tree, #update-list {
     height: 1fr;
     border: round $primary;
     padding: 0 1;
 }
-#casting-status {
+#install-status {
     height: auto;
     margin-bottom: 1;
 }
@@ -168,19 +170,28 @@ SelectionList {
 #scene.calm {
     display: none;
 }
+#quip {
+    height: 1;
+    width: 100%;
+    content-align: center middle;
+    margin-bottom: 1;
+}
+#quip.calm {
+    display: none;
+}
 #live {
     height: 1;
 }
-#ball {
+#modem {
     width: auto;
     height: 5;
     margin-right: 2;
 }
-#gazing {
+#connecting {
     height: 5;
     content-align: left middle;
 }
-#gaze-row {
+#connect-row {
     height: auto;
 }
 #log {

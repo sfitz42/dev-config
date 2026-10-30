@@ -1,8 +1,8 @@
-"""conjure 🪄: the interactive installer, a step-by-step wizard.
+"""dev-config Setup: the interactive installer, a step-by-step wizard of the old school.
 
 scripts/dotfiles            # on a terminal, with no command
-scripts/dotfiles conjure
-uv run conjure
+scripts/dotfiles wizard
+uv run wizard
 """
 
 from __future__ import annotations
@@ -14,13 +14,13 @@ import sys
 from textual.app import App
 
 from dotfiles import core, install, packages, platform, state, update
-from dotfiles.wizard import anim, model, screens, theme
+from dotfiles.wizard import anim, demo, model, screens, theme
 
 
-class ConjureApp(App[tuple[str, str] | None]):
+class SetupApp(App[tuple[str, str] | None]):
     CSS = theme.CSS
-    TITLE = "conjure"
-    SUB_TITLE = "the dev-config installer"
+    TITLE = "dev-config Setup"
+    SUB_TITLE = "Setup Wizard"
     ENABLE_COMMAND_PALETTE = False
 
     def __init__(
@@ -29,9 +29,11 @@ class ConjureApp(App[tuple[str, str] | None]):
         reapply: bool = False,
         touched: list[str] | None = None,
         calm: bool | None = None,
+        demo: str | None = None,
+        pace: float = 6,
     ) -> None:
         super().__init__()
-        # calm: no animation (--calm, CONJURE_CALM=1 or TERM=dumb)
+        # calm: no animation (--calm, DEVCONFIG_CALM=1 or TERM=dumb)
         self.calm = anim.calm_from_env() if calm is None else calm
         self.intro_done = False  # the title is written out once, on first open
         self.last_step: int | None = None  # rail index of the last page shown, for the trail
@@ -47,16 +49,23 @@ class ConjureApp(App[tuple[str, str] | None]):
             opts=opts,
         )
         self.reapply = reapply
+        self.demo, self.pace = demo, pace  # --demo: play the installing page, change nothing
         self.session.touched = touched or []
 
     def on_mount(self) -> None:
-        self.register_theme(theme.ARCANE)
-        self.theme = "arcane"
+        self.register_theme(theme.CLASSIC)
+        self.theme = "classic"
         self.push_screen(screens.WelcomePage())
         if self.reapply:
-            # restarted after an update that changed conjure: go straight to re-applying
+            # restarted after an update that changed Setup: go straight to re-applying
             self.session.mode = "update"
-            self.push_screen(screens.IncantationPage())
+            self.push_screen(screens.ReadyPage())
+        elif self.demo:
+            if self.demo == "remove":
+                self.session.mode = "remove"
+            self.session.settings.dry_run = True  # so every page says it was a simulation
+            job, count = demo.job(self.demo, self.pace)
+            self.push_screen(screens.InstallingPage(job, count))
 
     def saved_selection(self, touched: list[str]) -> install.Selection:
         """The last install's selection (or the defaults), with extras only where the update
@@ -69,25 +78,33 @@ class ConjureApp(App[tuple[str, str] | None]):
         return sel
 
 
-def run_wizard(reapply: bool = False, touched: list[str] | None = None, calm: bool = False) -> int:
-    app = ConjureApp(reapply=reapply, touched=touched, calm=calm or None)
+def run_wizard(
+    reapply: bool = False,
+    touched: list[str] | None = None,
+    calm: bool = False,
+    demo: str | None = None,
+    pace: float = 6,
+) -> int:
+    app = SetupApp(reapply=reapply, touched=touched, calm=calm or None, demo=demo, pace=pace)
     result = app.run()
     if result and result[0] == "restart":
-        # the update changed conjure itself: start again on the new code (uv syncs new deps)
+        # the update changed Setup itself: start again on the new code (uv syncs new deps)
         script = str(core.REPO_ROOT / "scripts" / "dotfiles")
-        again = [script, "conjure", "--reapply", "--touched", result[1]]
+        again = [script, "wizard", "--reapply", "--touched", result[1]]
         os.execv(script, again + (["--calm"] if app.calm else []))
     return 0
 
 
 def main() -> int:
-    """`uv run conjure` entry point."""
-    p = argparse.ArgumentParser(prog="conjure", description="the dev-config installer wizard")
+    """`uv run wizard` entry point."""
+    p = argparse.ArgumentParser(prog="wizard", description="the dev-config Setup Wizard")
     p.add_argument("--reapply", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--touched", default="", help=argparse.SUPPRESS)
-    p.add_argument("--calm", action="store_true", help="no animation (also CONJURE_CALM=1)")
+    p.add_argument("--calm", action="store_true", help="no animation (also DEVCONFIG_CALM=1)")
+    demo.add_demo_args(p)
     args = p.parse_args()
     if not (sys.stdin.isatty() and sys.stdout.isatty()):
-        core.err("conjure needs a terminal; use `scripts/dotfiles install` in scripts")
+        core.err("Setup needs a terminal; use `scripts/dotfiles install` in scripts")
         return 2
-    return run_wizard(args.reapply, [t for t in args.touched.split(",") if t], args.calm)
+    touched = [t for t in args.touched.split(",") if t]
+    return run_wizard(args.reapply, touched, args.calm, args.demo, args.pace)

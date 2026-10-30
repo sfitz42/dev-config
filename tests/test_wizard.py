@@ -92,7 +92,8 @@ def test_selection_from_ticks():
 
 @pytest.fixture
 def quiet_repo(monkeypatch, fake_home):
-    """No network or real git state while the welcome screen gazes, and no Ollama to ask."""
+    """No network or real git state while the welcome screen checks for updates, and no Ollama
+    to ask."""
     monkeypatch.setattr(models, "installed", lambda runtime, spec: set())
     monkeypatch.setattr(models, "ollama_version", lambda: None)
     monkeypatch.setattr(update, "is_checkout", lambda root=core.REPO_ROOT: True)
@@ -104,7 +105,7 @@ def quiet_repo(monkeypatch, fake_home):
     )
 
 
-async def test_cast_flow_streams_into_the_log(quiet_repo, monkeypatch):
+async def test_install_flow_streams_into_the_log(quiet_repo, monkeypatch):
     ran = []
 
     def fake_run(ctx, sel, root=core.REPO_ROOT, record=True):
@@ -114,32 +115,32 @@ async def test_cast_flow_streams_into_the_log(quiet_repo, monkeypatch):
         return {"links": True}
 
     monkeypatch.setattr(install, "run", fake_run)
-    app = wizard_app.ConjureApp(plat=LINUX)
+    app = wizard_app.SetupApp(plat=LINUX)
     async with app.run_test(size=(120, 45)) as pilot:
         await pilot.pause()
         assert isinstance(app.screen, screens.WelcomePage)
         assert app.screen.query_one("#back", Button).disabled
         await pilot.click("#next")
         await pilot.pause()
-        # first time here: choose a path; picking the spellbook adds its steps to the rail
-        path = app.screen
-        assert isinstance(path, screens.PathPage)
+        # first time here: setup type; picking Custom adds its steps to the rail
+        setup_type = app.screen
+        assert isinstance(setup_type, screens.SetupTypePage)
         assert [k for k, _ in screens.steps(app.session)] == [
             "welcome",
-            "path",
-            "incantation",
-            "casting",
-            "done",
+            "type",
+            "ready",
+            "installing",
+            "finish",
         ]
-        path.query("RadioButton").last(RadioButton).value = True
+        setup_type.query("RadioButton").last(RadioButton).value = True
         await pilot.pause()
         assert app.session.custom
-        assert "spellbook" in [k for k, _ in screens.steps(app.session)]
+        assert "components" in [k for k, _ in screens.steps(app.session)]
         await pilot.click("#next")
         await pilot.pause()
-        spellbook = app.screen
-        assert isinstance(spellbook, screens.SpellbookPage)
-        config = spellbook.query_one("#list-config", SelectionList)
+        components = app.screen
+        assert isinstance(components, screens.ComponentsPage)
+        config = components.query_one("#list-config", SelectionList)
         zed = next(
             config.get_option_at_index(i)
             for i in range(config.option_count)
@@ -148,53 +149,53 @@ async def test_cast_flow_streams_into_the_log(quiet_repo, monkeypatch):
         assert zed.disabled
         await pilot.click("#next")
         await pilot.pause()
-        assert isinstance(app.screen, screens.EnchantPage)
+        assert isinstance(app.screen, screens.OptionsPage)
         await pilot.click("#next")
         await pilot.pause()
-        assert isinstance(app.screen, screens.IncantationPage)
+        assert isinstance(app.screen, screens.ReadyPage)
         app.screen.query_one("#dry", Switch).value = True
         await pilot.click("#next")
         await pilot.pause()
-        casting = app.screen
-        assert isinstance(casting, screens.CastingPage)
+        installing = app.screen
+        assert isinstance(installing, screens.InstallingPage)
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert casting.finished and casting.good
-        assert casting._finale == "burst"
-        assert casting._stage == "link"  # the scene followed the step
-        lines = [str(line.text) for line in casting.query_one("#log", RichLog).lines]
+        assert installing.finished and installing.good
+        assert installing._finale == "burst"
+        assert installing._stage == "link"  # the scene followed the step
+        lines = [str(line.text) for line in installing.query_one("#log", RichLog).lines]
         assert any("link: zsh" in line for line in lines)
         assert any("[dry-run] echo hello" in line for line in lines)
         assert ran and ran[0][0] is True and ran[0][1] is True
-        assert casting.query_one("#back", Button).disabled
+        assert installing.query_one("#back", Button).disabled
         await pilot.click("#next")
         await pilot.pause()
-        assert isinstance(app.screen, screens.DonePage)
+        assert isinstance(app.screen, screens.FinishPage)
         await pilot.click("#next")
         await pilot.pause()
     assert app.return_value is None  # Finish leaves the wizard
-    assert core.SINK is core.print_sink  # restored after the cast
+    assert core.SINK is core.print_sink  # restored after the install
 
 
-async def test_installed_before_opens_the_grimoire(quiet_repo, fake_home):
+async def test_installed_before_opens_maintenance(quiet_repo, fake_home):
     from dotfiles import state
 
     state.save(install.Selection(modules=["zsh"]).to_dict())
-    app = wizard_app.ConjureApp(plat=LINUX)
+    app = wizard_app.SetupApp(plat=LINUX)
     async with app.run_test(size=(120, 45)) as pilot:
         await pilot.pause()
         await pilot.click("#next")
         await pilot.pause()
-        grimoire = app.screen
-        assert isinstance(grimoire, screens.GrimoirePage)
-        grimoire.query("RadioButton")[1].value = True  # Update
+        maintenance = app.screen
+        assert isinstance(maintenance, screens.MaintenancePage)
+        maintenance.query("RadioButton")[1].value = True  # Update
         await pilot.pause()
         assert app.session.mode == "update"
-        assert "scrying" in [k for k, _ in screens.steps(app.session)]
+        assert "updates" in [k for k, _ in screens.steps(app.session)]
         await pilot.click("#next")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert isinstance(app.screen, screens.ScryingPage)
+        assert isinstance(app.screen, screens.UpdatesPage)
         assert not app.screen.query_one("#next", Button).disabled  # up to date: re-apply
         await pilot.click("#cancel")
         await pilot.pause()
@@ -211,10 +212,10 @@ async def test_prompts_become_dialogs(quiet_repo):
         answers.append(ctx.confirm("run the unpinned script?"))
         return {"asked": True}
 
-    app = wizard_app.ConjureApp(plat=LINUX)
+    app = wizard_app.SetupApp(plat=LINUX)
     async with app.run_test(size=(120, 45)) as pilot:
         await pilot.pause()
-        app.push_screen(screens.CastingPage(job, 1))
+        app.push_screen(screens.InstallingPage(job, 1))
         await pilot.pause(0.2)
         assert isinstance(app.screen, screens.ConfirmModal)
         await pilot.press("y")
@@ -223,42 +224,81 @@ async def test_prompts_become_dialogs(quiet_repo):
     assert answers == [True]
 
 
-async def test_banish_dissolves_and_failures_fizzle(quiet_repo):
-    def banish(ctx):
+async def test_remove_dissolves_and_failures_show_an_error(quiet_repo):
+    def remove(ctx):
         core.step("remove links created by this tool")
         ctx.say(f"unlink {core.home()}/.zshrc")
-        return {"banish": True}
+        return {"remove": True}
 
     def broken(ctx):
         core.step("packages")
         return {"packages": False}
 
-    app = wizard_app.ConjureApp(plat=LINUX)
+    app = wizard_app.SetupApp(plat=LINUX)
     async with app.run_test(size=(120, 45)) as pilot:
         await pilot.pause()
         app.session.mode = "remove"
-        page = screens.CastingPage(banish, 1)
+        page = screens.InstallingPage(remove, 1)
         app.push_screen(page)
         await app.workers.wait_for_complete()
         await pilot.pause(0.3)
-        assert page._finale == "dissolve" and page._banished == ["~/.zshrc"]
+        assert page._finale == "dissolve" and page._removed == ["~/.zshrc"]
         app.session.mode = "install"
-        failed = screens.CastingPage(broken, 1)
+        failed = screens.InstallingPage(broken, 1)
         app.push_screen(failed)
         await app.workers.wait_for_complete()
         await pilot.pause(0.3)
-        assert failed._finale == "fizzle"
+        assert failed._finale == "error"
 
 
 async def test_calm_mode_has_no_animation(quiet_repo):
-    app = wizard_app.ConjureApp(plat=LINUX, calm=True)
+    app = wizard_app.SetupApp(plat=LINUX, calm=True)
     async with app.run_test(size=(120, 45)) as pilot:
         await pilot.pause()
         welcome = app.screen
         assert not hasattr(welcome, "_ticker")
         assert welcome._typed is None  # the title is there at once
-        page = screens.CastingPage(lambda ctx: {"ok": True}, 1)
+        page = screens.InstallingPage(lambda ctx: {"ok": True}, 1)
         app.push_screen(page)
         await app.workers.wait_for_complete()
         await pilot.pause()
         assert page.query_one("#scene").has_class("calm")
+        assert page.query_one("#quip").has_class("calm")
+
+
+def test_wizard_command():
+    from dotfiles import cli
+
+    parser = cli.build_parser()
+    assert parser.parse_args(["wizard", "--calm"]).fn is cli.cmd_wizard
+    with pytest.raises(SystemExit):
+        parser.parse_args(["conjure"])  # the old name is gone
+    args = parser.parse_args(["wizard", "--demo", "--pace", "2"])
+    assert args.demo == "install" and args.pace == 2
+
+
+async def test_demo_plays_every_stage_and_changes_nothing(quiet_repo, fake_home):
+    from dotfiles.wizard import demo
+
+    app = wizard_app.SetupApp(plat=LINUX, demo="install", pace=0.05)
+    async with app.run_test(size=(120, 45)) as pilot:
+        await pilot.pause()
+        page = app.screen
+        assert isinstance(page, screens.InstallingPage)
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert page.good and page._finale == "burst" and page.ctx.dry_run
+        lines = [str(line.text) for line in page.query_one("#log", RichLog).lines]
+        assert all(any(heading in line for line in lines) for heading, *_ in demo.STAGES)
+    assert not (fake_home / ".zshrc").exists()  # pretend output only
+
+
+async def test_demo_fail_and_remove(quiet_repo):
+    for kind, finale in [("fail", "error"), ("remove", "dissolve")]:
+        app = wizard_app.SetupApp(plat=LINUX, demo=kind, pace=0.05)
+        async with app.run_test(size=(120, 45)) as pilot:
+            await pilot.pause()
+            page = app.screen
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert page._finale == finale

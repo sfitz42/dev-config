@@ -142,10 +142,10 @@ def cmd_models(args: argparse.Namespace) -> int:
     return 0 if models.pull(ctx, args.runtime, _csv(args.models or "")) else 1
 
 
-def cmd_conjure(args: argparse.Namespace) -> int:
+def cmd_wizard(args: argparse.Namespace) -> int:
     from dotfiles.wizard import app  # textual is only imported for the wizard
 
-    return app.run_wizard(args.reapply, _csv(args.touched or ""), args.calm)
+    return app.run_wizard(args.reapply, _csv(args.touched or ""), args.calm, args.demo, args.pace)
 
 
 def cmd_uninstall(args: argparse.Namespace) -> int:
@@ -202,7 +202,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="dotfiles",
         description="Install and manage dev-config. With no command on a terminal, opens the "
-        "conjure wizard.",
+        "Setup Wizard.",
     )
     sub = p.add_subparsers(dest="command")
 
@@ -263,11 +263,16 @@ def build_parser() -> argparse.ArgumentParser:
         choices=models.RUNTIMES,
         help="only this runtime (default: every one found here; under WSL, Ollama on Windows)",
     )
-    sp = sub.add_parser("conjure", help="open the interactive installer (the default on a TTY)")
+    sp = sub.add_parser(
+        "wizard", help="open the Setup Wizard, the interactive installer (the default on a TTY)"
+    )
     sp.add_argument("--reapply", action="store_true", help=argparse.SUPPRESS)
     sp.add_argument("--touched", help=argparse.SUPPRESS)
-    sp.add_argument("--calm", action="store_true", help="no animation (also CONJURE_CALM=1)")
-    sp.set_defaults(fn=cmd_conjure)
+    sp.add_argument("--calm", action="store_true", help="no animation (also DEVCONFIG_CALM=1)")
+    from dotfiles.wizard import demo  # just argparse and core: textual stays unimported
+
+    demo.add_demo_args(sp)
+    sp.set_defaults(fn=cmd_wizard)
     return p
 
 
@@ -284,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
             parser.print_usage(sys.stderr)
             core.err("no command given (the wizard needs a terminal)")
             return 2
-        args = parser.parse_args(["conjure"])
+        args = parser.parse_args(["wizard"])
     args.argv = argv
     code: int = args.fn(args)
     return code

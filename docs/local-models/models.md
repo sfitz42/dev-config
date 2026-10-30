@@ -35,7 +35,7 @@ comes closest. Under WSL, models go to Ollama on Windows (see
 
 ## Pulling them
 
-From the wizard (the spellbook's Models tab shows which are pulled), or:
+From the wizard (the Models tab under Select Components shows which are pulled), or:
 
 ```sh
 scripts/dotfiles models                      # every runtime found here
